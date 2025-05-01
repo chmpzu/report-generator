@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Report Generator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background-color: #eef2f7;
+      margin: 0;
+      padding: 2rem;
+      color: #2c3e50;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+    }
+    h1 {
+      margin-bottom: 2rem;
+      font-size: 2.25rem;
+      font-weight: 600;
+    }
+    .tools-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.5rem;
+      width: 100%;
+      max-width: 800px;
+    }
+    .tool-link {
+      text-decoration: none;
+    }
+    .tool-card {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      padding: 1.5rem;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      text-align: center;
+      color: inherit;
+    }
+    .tool-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    }
+    .tool-title {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #3178c6;
+    }
+    .attribution {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      font-size: 0.85rem;
+      color: #555;
+      font-weight: 400;
+    }
+  </style>
+</head>
+<body>
+  <div class="attribution">By: Christine Anastacio</div>
+  <h1>Report Generator</h1>
+  <div class="tools-container">
+    <a class="tool-link" href="sales_report.html">
+      <div class="tool-card">
+        <h2 class="tool-title">Sales Report</h2>
+      </div>
+    </a>
+    <a class="tool-link" href="profit_loss_report.html">
+      <div class="tool-card">
+        <h2 class="tool-title">Profit / Loss Report</h2>
+      </div>
+    </a>
+  </div>
+</body>
+</html>
