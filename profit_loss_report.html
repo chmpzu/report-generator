@@ -2,256 +2,242 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Net Profit Margin Calculator</title>
+  <title>Profit / Loss Report</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
   <style>
-    /* Full page style for body and container */
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      background-color: #f4f4f4;
-    }
-
-    .container {
-      width: 100%;
-      height: 100%;
-      padding: 20px;
-      box-sizing: border-box;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      background-color: white;
-      overflow: auto;
-    }
-
-    h1 {
-      margin-bottom: 20px;
-      font-size: 1.5em;
-      text-align: center;
-    }
-
-    table {
-      width: 100%;
-      height: 100%;
-      border-collapse: collapse;
-      margin-top: 20px;
-      table-layout: fixed; /* Ensure all columns take equal space */
-    }
-
-    th, td {
-      padding: 10px;
-      text-align: center;
-      border: 1px solid #ddd;
-      word-wrap: break-word;
-    }
-
-    th {
-      background-color: #007bff;
-      color: white;
-    }
-
-    input[type="number"], input[type="text"] {
-      width: 95%;
-      padding: 8px;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-      text-align: right;
-    }
-
-    button {
-      width: 100%;
-      padding: 10px;
-      background-color: #007bff;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      font-size: 16px;
-      cursor: pointer;
-      margin-top: 10px;
-    }
-
-    button:hover {
-      background-color: #0056b3;
-    }
-
-    /* Ensure the table content stays scrollable when there are many rows */
-    tbody {
-      display: block;
-      overflow-y: auto;
-      height: calc(100vh - 200px); /* Adjust the table height */
-    }
-
-    thead, tbody tr {
-      display: table;
-      width: 100%;
-      table-layout: fixed;
-    }
-
-    /* Style for the 'Add New Entry' button aligned to the right */
-    .add-row-btn-container {
-      display: flex;
-      justify-content: flex-end;
-      margin-top: 10px;
-      width: 100%;
-    }
-
-    .add-row-btn-container button {
-      width: auto;
-    }
-
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f9fafb; margin: 0; padding: 2rem; color: #333; }
+    h2 { color: #2c3e50; margin-bottom: 1rem; }
+    input[type="file"] { margin-bottom: 1rem; }
+    button { background-color: #1f6feb; color: #fff; border: none; padding: 0.5rem 1rem; margin: 0.2rem; border-radius: 4px; cursor: pointer; font-weight: 600; }
+    button:hover { background-color: #155ac4; }
+    #totalOrders { margin-top: 1rem; font-weight: bold; }
+    table { width: 100%; background-color: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.05); border-collapse: collapse; margin-top: 1rem; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: #f1f3f5; font-weight: bold; }
+    tfoot td { background-color: #f8f9fa; font-weight: bold; }
+    td.negative { color: red; font-weight: bold; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Net Profit Margin (NPM) Calculator</h1>
-    
-    <table id="npmTable">
-      <thead>
-        <tr>
-          <th>Site Order ID</th>
-          <th>Quantity</th>
-          <th>Unit Sales Price</th>
-          <th>Total Tax Price</th>
-          <th>Total Shipping Paid</th>
-          <th>Sales Order Total</th>
-          <th>Supplier Cost</th>
-          <th>Total Supplier Cost</th>
-          <th>SS Shipping Price</th>
-          <th>Merchant / List Fee</th>
-          <th>Total Cost</th>
-          <th>Net Profit</th>
-          <th>NPM (%)</th>
-        </tr>
-      </thead>
-      <tbody>
-        <!-- Rows will be dynamically added here -->
-      </tbody>
-    </table>
 
-    <div class="add-row-btn-container">
-      <button id="addRowBtn">Add New Entry</button>
-    </div>
-  </div>
+  <div style="position:absolute; top:2rem; right:2rem; font-size:0.9rem; color:#333; font-weight:600;">By: Christine Anastacio</div>
+
+  <h2>Profit / Loss Report</h2>
+  <input type="file" id="fileUpload" multiple accept=".csv,.xlsx,.xls">
+  <button onclick="resetReport()">Reset</button>
+  <button onclick="exportTableToExcel('reportTable', 'profit_loss_report')">Export as Excel</button>
+  <p id="totalOrders">Total Orders: 0</p>
+
+  <table id="reportTable">
+    <thead>
+      <tr>
+        <th>Site Order ID</th><th>Quantity</th><th>Unit Sales Price</th><th>Total Tax Price</th><th>Total Shipping Paid</th><th>Total Amount Paid</th><th>Sales Order Total</th><th>Supplier Cost</th><th>Total Supplier Cost</th><th>SS Shipping Price</th><th>List Fee</th><th>Total Cost</th><th>Net Profit</th><th>NPM</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+    <tfoot>
+      <tr>
+        <td colspan="14">Totals will appear here</td>
+      </tr>
+    </tfoot>
+  </table>
 
   <script>
-    // script.js
+  let masterData = [];
+  const tableBody = document.querySelector("#reportTable tbody");
+  const totalOrdersEl = document.getElementById("totalOrders");
+  let isFirstFile = true;
 
-    // Function to update localStorage with the current table data
-    function updateLocalStorage() {
-      const rows = document.querySelectorAll('#npmTable tbody tr');
-      const tableData = [];
+  function resetReport() {
+    masterData = [];
+    isFirstFile = true;
+    updateTable();
+    document.getElementById("fileUpload").value = "";
+  }
 
-      rows.forEach(row => {
-        const rowData = {
-          siteOrderId: row.querySelector('.site-order-id').value,
-          quantity: parseFloat(row.querySelector('.quantity').value),
-          unitSalesPrice: parseFloat(row.querySelector('.unit-sales-price').value),
-          totalTaxPrice: parseFloat(row.querySelector('.total-tax-price').value),
-          totalShippingPaid: parseFloat(row.querySelector('.total-shipping-paid').value),
-          supplierCost: parseFloat(row.querySelector('.supplier-cost').value),
-          ssShippingPrice: parseFloat(row.querySelector('.ss-shipping-price').value),
-          salesOrderTotal: parseFloat(row.querySelector('.sales-order-total').textContent),
-          totalSupplierCost: parseFloat(row.querySelector('.total-supplier-cost').textContent),
-          merchantListFee: parseFloat(row.querySelector('.merchant-list-fee').textContent),
-          totalCost: parseFloat(row.querySelector('.total-cost').textContent),
-          netProfit: parseFloat(row.querySelector('.net-profit').textContent),
-          npm: parseFloat(row.querySelector('.npm-result').textContent),
-        };
-        tableData.push(rowData);
-      });
+  document.getElementById("fileUpload").addEventListener("change", handleFileUpload);
 
-      localStorage.setItem('npmData', JSON.stringify(tableData));
+  function handleFileUpload(evt) {
+    const files = evt.target.files;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        let data, workbook, sheet, json;
+        if (file.name.endsWith(".csv")) {
+          workbook = XLSX.read(e.target.result, { type: 'binary' });
+        } else {
+          data = new Uint8Array(e.target.result);
+          workbook = XLSX.read(data, { type: 'array' });
+        }
+        sheet = workbook.Sheets[workbook.SheetNames[0]];
+        json = XLSX.utils.sheet_to_json(sheet);
+        mergeData(json);
+        updateTable();
+      };
+      if (file.name.endsWith(".csv")) {
+        reader.readAsBinaryString(file);
+      } else {
+        reader.readAsArrayBuffer(file);
+      }
     }
+  }
 
-    // Function to load data from localStorage
-    function loadFromLocalStorage() {
-      const savedData = localStorage.getItem('npmData');
-      if (savedData) {
-        const tableData = JSON.parse(savedData);
-        tableData.forEach(rowData => {
-          addNewRow(rowData);
+  function mergeData(newData) {
+    if (isFirstFile) {
+      newData.forEach(row => {
+        const id = row["Site Order ID"] || row["Order Number"] || row["Order #"];
+        if (!id) return;
+        const newRow = buildRow(row);
+        newRow["Site Order ID"] = id;
+        masterData.push(newRow);
+      });
+      isFirstFile = false;
+    } else {
+      newData.forEach(row => {
+        const id = row["Site Order ID"] || row["Order Number"] || row["Order #"];
+        if (!id) return;
+        masterData.forEach(existingRow => {
+          if (existingRow["Site Order ID"] === id) {
+            const newRow = buildRow(row);
+            for (let key in newRow) {
+              if ((existingRow[key] === undefined || existingRow[key] === 0 || existingRow[key] === "") && newRow[key] !== undefined) {
+                existingRow[key] = newRow[key];
+              }
+            }
+            recalculateFields(existingRow);
+          }
         });
+      });
+    }
+  }
+
+  function buildRow(row) {
+    const resolveValue = (keys) => {
+      for (const key of keys) {
+        if (row[key] !== undefined && row[key] !== "") return parseFloat(row[key]);
+      }
+      return undefined;
+    };
+
+    const mappings = {
+      "Quantity": ["Quantity"],
+      "Unit Sales Price": ["Unit Price", "Unit Sales Price"],
+      "Total Tax Price": ["Tax Paid"],
+      "Total Shipping Paid": ["Shipping Paid", "Total Shipping Paid"],
+      "Total Amount Paid": ["Amount Paid"],
+      "Supplier Cost": ["Item Seller Cost", "Supplier Cost"],
+      "SS Shipping Price": ["Rate", "SS Shipping Price"]
+    };
+
+    const updated = {};
+    Object.entries(mappings).forEach(([field, aliases]) => {
+      const val = resolveValue(aliases);
+      if (val !== undefined) updated[field] = val;
+    });
+
+    updated["Quantity"] = updated["Quantity"] || 0;
+    updated["Unit Sales Price"] = updated["Unit Sales Price"] || 0;
+    updated["Total Tax Price"] = updated["Total Tax Price"] || 0;
+    updated["Total Shipping Paid"] = updated["Total Shipping Paid"] || 0;
+    updated["Total Amount Paid"] = updated["Total Amount Paid"] || 0;
+    updated["Supplier Cost"] = updated["Supplier Cost"] || 0;
+    updated["SS Shipping Price"] = updated["SS Shipping Price"] || 0;
+
+    recalculateFields(updated);
+
+    return updated;
+  }
+
+  function recalculateFields(row) {
+    row["Sales Order Total"] = +(row["Total Amount Paid"] + row["Total Tax Price"] + row["Total Shipping Paid"]).toFixed(2);
+    row["Total Supplier Cost"] = +(row["Supplier Cost"] * row["Quantity"]).toFixed(2);
+    row["List Fee"] = +(row["Sales Order Total"] * 0.13).toFixed(2);
+    row["Total Cost"] = +(row["Total Supplier Cost"] + row["SS Shipping Price"] + row["List Fee"]).toFixed(2);
+    row["Net Profit"] = +(row["Sales Order Total"] - row["Total Cost"] - row["Total Tax Price"]).toFixed(2);
+    row["NPM"] = row["Sales Order Total"] !== 0 ? ((row["Net Profit"] / row["Sales Order Total"]) * 100).toFixed(2) : "0.00";
+  }
+
+  function updateTable() {
+    tableBody.innerHTML = "";
+    let totals = Array(13).fill(0);
+    let rowCount = 0;
+
+    masterData.forEach(data => {
+      const row = document.createElement("tr");
+      const fields = ["Site Order ID", "Quantity", "Unit Sales Price", "Total Tax Price", "Total Shipping Paid", "Total Amount Paid", "Sales Order Total", "Supplier Cost", "Total Supplier Cost", "SS Shipping Price", "List Fee", "Total Cost", "Net Profit", "NPM"];
+
+      fields.forEach((key, i) => {
+        const td = document.createElement("td");
+        td.textContent = (key === "NPM") ? (parseFloat(data[key]).toFixed(2) + "%") : data[key];
+        if ((key === "Net Profit" || key === "NPM") && parseFloat(data[key]) < 0) {
+          td.classList.add("negative");
+        }
+        row.appendChild(td);
+        if (i > 0 && i < 13) totals[i-1] += parseFloat(data[key]) || 0;
+      });
+      tableBody.appendChild(row);
+      rowCount++;
+    });
+
+    const totalNetProfit = totals[11] || 0;
+    const totalSalesOrder = totals[5] || 0;
+    const totalNPM = totalSalesOrder !== 0 ? ((totalNetProfit / totalSalesOrder) * 100).toFixed(2) + "%" : "0.00%";
+
+    document.querySelector("tfoot tr").innerHTML = '<td>Total</td>' + totals.map((v, i) => <td>${i === 12 ? totalNPM : v.toFixed(2)}</td>).join("");
+    totalOrdersEl.textContent = Total Orders: ${rowCount};
+  }
+
+  function exportTableToExcel(tableID, filename = '') {
+    const table = document.getElementById(tableID);
+    const rows = table.querySelectorAll("tr");
+    const ws_data = [];
+    const percentageColumns = new Set();
+
+    rows.forEach((row, rowIndex) => {
+      const rowData = [];
+      const cells = row.querySelectorAll("th, td");
+      cells.forEach((cell, colIndex) => {
+        let text = cell.textContent.trim();
+        if (text.endsWith("%")) {
+          let number = parseFloat(text.replace("%", "")) / 100;
+          rowData.push(number);
+          if (rowIndex === 0) {
+            percentageColumns.add(colIndex);
+          }
+        } else if (!isNaN(text) && text !== "") {
+          rowData.push(parseFloat(text));
+        } else {
+          rowData.push(text);
+        }
+      });
+      ws_data.push(rowData);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(ws_data);
+    const range = XLSX.utils.decode_range(ws['!ref']);
+
+    for (let C = range.s.c; C <= range.e.c; ++C) {
+      if (percentageColumns.has(C)) {
+        for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+          const cellAddress = { c: C, r: R };
+          const cellRef = XLSX.utils.encode_cell(cellAddress);
+          if (ws[cellRef] && typeof ws[cellRef].v === 'number') {
+            ws[cellRef].t = 'n';
+            ws[cellRef].z = '0.00%';
+          }
+        }
       }
     }
 
-    // Function to add a new row to the table
-    function addNewRow(rowData = {}) {
-      const tableBody = document.querySelector('#npmTable tbody');
-      const newRow = document.createElement('tr');
+    ws['!cols'] = ws_data[0].map(() => ({ wch: 20 }));
 
-      newRow.innerHTML = `
-        <td><input type="text" class="site-order-id" value="${rowData.siteOrderId || ''}" /></td>
-        <td><input type="number" class="quantity" value="${rowData.quantity || ''}" /></td>
-        <td><input type="number" class="unit-sales-price" value="${rowData.unitSalesPrice || ''}" /></td>
-        <td><input type="number" class="total-tax-price" value="${rowData.totalTaxPrice || ''}" /></td>
-        <td><input type="number" class="total-shipping-paid" value="${rowData.totalShippingPaid || ''}" /></td>
-        <td><span class="sales-order-total">${rowData.salesOrderTotal || '0'}</span></td>
-        <td><input type="number" class="supplier-cost" value="${rowData.supplierCost || ''}" /></td>
-        <td><span class="total-supplier-cost">${rowData.totalSupplierCost || '0'}</span></td>
-        <td><input type="number" class="ss-shipping-price" value="${rowData.ssShippingPrice || ''}" /></td>
-        <td><span class="merchant-list-fee">${rowData.merchantListFee || '0'}</span></td>
-        <td><span class="total-cost">${rowData.totalCost || '0'}</span></td>
-        <td><span class="net-profit">${rowData.netProfit || '0'}</span></td>
-        <td><span class="npm-result">${rowData.npm || '0'}</span></td>
-      `;
-      
-      tableBody.appendChild(newRow);
-      addInputListeners(newRow);
-    }
-
-    // Function to add event listeners to inputs for automatic calculations
-    function addInputListeners(row) {
-      const inputs = row.querySelectorAll('input');
-      
-      inputs.forEach(input => {
-        input.addEventListener('input', function() {
-          // Auto-calculate NPM values
-          const quantity = parseFloat(row.querySelector('.quantity').value);
-          const unitSalesPrice = parseFloat(row.querySelector('.unit-sales-price').value);
-          const totalTaxPrice = parseFloat(row.querySelector('.total-tax-price').value);
-          const totalShippingPaid = parseFloat(row.querySelector('.total-shipping-paid').value);
-          const supplierCost = parseFloat(row.querySelector('.supplier-cost').value);
-          const ssShippingPrice = parseFloat(row.querySelector('.ss-shipping-price').value);
-
-          if (isNaN(quantity) || isNaN(unitSalesPrice) || isNaN(totalTaxPrice) ||
-              isNaN(totalShippingPaid) || isNaN(supplierCost) || isNaN(ssShippingPrice) || quantity <= 0) {
-            return;
-          }
-
-          const salesOrderTotal = unitSalesPrice + totalTaxPrice + totalShippingPaid;
-          const totalSupplierCost = supplierCost * quantity;
-          const merchantListFee = salesOrderTotal * 0.15;
-          const totalCost = totalSupplierCost + ssShippingPrice + merchantListFee;
-          const netProfit = salesOrderTotal - totalCost - totalTaxPrice;
-          const npm = (netProfit / salesOrderTotal) * 100;
-
-          row.querySelector('.sales-order-total').textContent = salesOrderTotal.toFixed(2);
-          row.querySelector('.total-supplier-cost').textContent = totalSupplierCost.toFixed(2);
-          row.querySelector('.merchant-list-fee').textContent = merchantListFee.toFixed(2);
-          row.querySelector('.total-cost').textContent = totalCost.toFixed(2);
-          row.querySelector('.net-profit').textContent = netProfit.toFixed(2);
-          row.querySelector('.npm-result').textContent = npm.toFixed(2) + '%';
-
-          // Save data to localStorage after every change
-          updateLocalStorage();
-        });
-      });
-    }
-
-    // Add a new row when the "Add New Entry" button is clicked
-    document.getElementById('addRowBtn').addEventListener('click', function() {
-      addNewRow();
-    });
-
-    // Load any saved data when the page loads
-    window.addEventListener('load', function() {
-      loadFromLocalStorage();
-    });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+    XLSX.writeFile(wb, filename + ".xlsx");
+  }
   </script>
+
 </body>
 </html>
