@@ -7,94 +7,22 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
   <style>
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: #f6f8fa;
-      padding: 1.5rem;
-      color: #2c3e50;
-    }
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1rem;
-    }
-    .header img {
-      height: 40px;
-    }
-    h1 {
-      color: #2c3e50;
-      font-weight: 500;
-      font-size: 1.75rem;
-      margin: 0;
-    }
-    .controls {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      background: #ffffff;
-      padding: 0.8rem 1rem;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
-      margin-bottom: 1rem;
-    }
-    .left-controls {
-      display: flex;
-      flex-wrap: nowrap;
-      gap: 0.75rem;
-      align-items: center;
-    }
-    .controls input[type="file"] {
-      max-width: 220px;
-    }
+    body {font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f6f8fa; padding: 1.5rem; color: #2c3e50;}
+    .header {display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;}
+    .header img {height: 40px;}
+    h1 {color: #2c3e50; font-weight: 500; font-size: 1.75rem; margin: 0;}
+    .controls {display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; background: #ffffff; padding: 0.8rem 1rem; border-radius: 8px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04); margin-bottom: 1rem;}
+    .left-controls {display: flex; flex-wrap: nowrap; gap: 0.75rem; align-items: center;}
+    .controls input[type="file"] {max-width: 220px;}
     .controls input[type="file"],
     .controls input[type="date"],
-    .controls button {
-      padding: 0.4rem 0.8rem;
-      font-size: 0.9rem;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-    }
-    button {
-      background-color: #5a9bd5;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: background-color 0.2s ease;
-    }
-    button:hover {
-      background-color: #4a89c2;
-    }
-    #totalOrders {
-      font-size: 1rem;
-      margin: 0.75rem 0 1rem;
-      color: #2c3e50;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background-color: white;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
-      border-radius: 6px;
-      overflow: hidden;
-    }
-    th {
-      background-color: #2c3e50;
-      color: white;
-      padding: 0.6rem 0.75rem;
-      text-align: left;
-      white-space: nowrap;
-      font-weight: 500;
-    }
-    td {
-      padding: 0.6rem 0.75rem;
-      border-top: 1px solid #e1e5ea;
-    }
-    tr:nth-child(even) {
-      background-color: #f9fbfc;
-    }
+    .controls button {padding: 0.4rem 0.8rem; font-size: 0.9rem; border: 1px solid #ccc; border-radius: 4px;}
+    button {background-color: #5a9bd5; color: white; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.2s ease;}
+    button:hover {background-color: #4a89c2;}
+    #totalOrders{font-size:1rem;margin:0.75rem 0 1rem;color:#2c3e50;}
+    table{width:100%;border-collapse:collapse;background-color:white;box-shadow:0 1px 4px rgba(0,0,0,0.03);border-radius:6px;overflow:hidden;}
+    th{background-color:#2c3e50;color:white;padding:0.6rem 0.75rem;text-align:left;white-space:nowrap;font-weight:500;}td{padding:0.6rem 0.75rem;border-top:1px solid #e1e5ea;}
+    tr:nth-child(even){background-color:#f9fbfc;}
   </style>
 </head>
 
@@ -155,7 +83,7 @@
       }
       const date = new Date(dateValue);
       if (isNaN(date)) return dateValue;
-      return date.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+      return date.toISOString().split('T')[0]; // Format: M/DD/YYY
     }
 
     function handleFiles(event) {
@@ -189,7 +117,7 @@
             if (!masterOrderNumbers.has(orderNumber)) return;
 
             const existing = dataMap.get(orderNumber) || {};
-            const recipient = `${row["Shipping First Name"] || ''} ${row["Shipping Last Name"] || ''}`.trim();
+            const recipient = (row["Recipient"] || `${row["Shipping First Name"] || ''} ${row["Shipping Last Name"] || ''}`).trim();
 
             const updated = {
               "Order Date": formatDate(row["Order Date"] || existing["Order Date"] || ''),
