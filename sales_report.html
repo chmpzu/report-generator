@@ -138,30 +138,34 @@
               masterOrderNumbers.add(orderNumber);
             });
           } else {
-            // 1. Gather all tracking numbers (and additional fields if desired) per Order Number
-            const trackingMap = new Map();
-            json.forEach(row => {
-              const orderNumber = row["Order Number"] || row["Site Order ID"] || row["Order #"];
-              if (!orderNumber || !masterOrderNumbers.has(orderNumber)) return;
-              const tracking = row["Tracking Number"] || '';
-              const rate = row["Rate"] || '';
-              const service = row["Service"] || '';
-              if (!trackingMap.has(orderNumber)) trackingMap.set(orderNumber, []);
-              trackingMap.get(orderNumber).push({tracking, rate, service});
-            });
+// 1. Gather all possible fields per Order Number from succeeding files
+const updatesMap = new Map();
+json.forEach(row => {
+  const orderNumber = row["Order Number"] || row["Site Order ID"] || row["Order #"];
+  if (!orderNumber || !masterOrderNumbers.has(orderNumber)) return;
+  if (!updatesMap.has(orderNumber)) updatesMap.set(orderNumber, []);
+  updatesMap.get(orderNumber).push(row);
+});
 
-            // 2. Assign each tracking number to each master row with matching order number
-            for (const [orderNumber, updates] of trackingMap.entries()) {
-              let updateIdx = 0;
-              for (let i = 0; i < masterDataRows.length; i++) {
-                if (masterDataRows[i]["Order Number"] === orderNumber && updateIdx < updates.length) {
-                  if (updates[updateIdx].tracking) masterDataRows[i]["Tracking Number"] = updates[updateIdx].tracking;
-                  if (updates[updateIdx].rate) masterDataRows[i]["Rate"] = updates[updateIdx].rate;
-                  if (updates[updateIdx].service) masterDataRows[i]["Service"] = updates[updateIdx].service;
-                  updateIdx++;
-                }
-              }
-            }
+// 2. For each masterDataRows entry, fill in any missing field from the update rows for matching Order Number
+for (const [orderNumber, updateRows] of updatesMap.entries()) {
+  let updateIdx = 0;
+  for (let i = 0; i < masterDataRows.length; i++) {
+    if (masterDataRows[i]["Order Number"] === orderNumber && updateIdx < updateRows.length) {
+      const updateRow = updateRows[updateIdx];
+      for (const key in updateRow) {
+        // Only fill if missing or empty in masterDataRows
+        if (
+          (!masterDataRows[i][key] || masterDataRows[i][key] === '') &&
+          updateRow[key] !== undefined && updateRow[key] !== ''
+        ) {
+          masterDataRows[i][key] = updateRow[key];
+        }
+      }
+      updateIdx++;
+    }
+  }
+}
           }
 
           if (fileIdx === files.length - 1) {
