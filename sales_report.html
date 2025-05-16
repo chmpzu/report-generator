@@ -203,14 +203,29 @@ for (const [orderNumber, updateRows] of updatesMap.entries()) {
       }
     }
 
-    function exportToExcel() {
-      let filename = document.getElementById('exportFilename').value.trim() || 'Sales_Report';
-      filename = filename.replace(/\.xlsx$/i, '');
-      const worksheet = XLSX.utils.json_to_sheet(masterDataRows);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Sales Report');
-      XLSX.writeFile(workbook, filename + '.xlsx');
-    }
+function exportToExcel() {
+  let filename = document.getElementById('exportFilename').value.trim() || 'Sales_Report';
+  filename = filename.replace(/\.xlsx$/i, '');
+
+  // Get only the rows currently visible in the table
+  const table = document.getElementById('reportTable');
+  const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
+  const rows = Array.from(table.querySelectorAll('tbody tr')).map(tr =>
+    Array.from(tr.querySelectorAll('td')).map(td => td.textContent)
+  );
+
+  // Create array of objects using headers and rows
+  const data = rows.map(rowArr => {
+    const obj = {};
+    headers.forEach((header, i) => { obj[header] = rowArr[i]; });
+    return obj;
+  });
+
+  const worksheet = XLSX.utils.json_to_sheet(data);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Sales Report');
+  XLSX.writeFile(workbook, filename + '.xlsx');
+}
 
     function filterByDate() {
       const date = document.getElementById('dateFilter').value;
