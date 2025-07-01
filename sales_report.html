@@ -9,24 +9,20 @@
   <style>
     body {font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f6f8fa; padding: 1.5rem; color: #2c3e50;}
     .header {display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;}
-    .header img {height: 40px;}
     h1 {color: #2c3e50; font-weight: 500; font-size: 1.75rem; margin: 0;}
     .controls {display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; background: #ffffff; padding: 0.8rem 1rem; border-radius: 8px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);}
-    .left-controls {display: flex; flex-wrap: nowrap; gap: 0.75rem; align-items: center;}
+    .left-controls {display: flex; gap: 0.75rem; align-items: center;}
     .controls input[type="file"] {max-width: 220px;}
-    .controls input[type="file"],
-    .controls input[type="date"],
-    .controls button {padding: 0.4rem 0.8rem; font-size: 0.9rem; border: 1px solid #ccc; border-radius: 4px;}
+    .controls input[type="file"], .controls button {padding: 0.4rem 0.8rem; font-size: 0.9rem; border: 1px solid #ccc; border-radius: 4px;}
     button {background-color: #5a9bd5; color: white; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.2s ease;}
     button:hover {background-color: #4a89c2;}
     #totalOrders{font-size:1rem;margin:0.75rem 0 0.5rem;color:#2c3e50;}
-    #ordersByDate{font-size:0.95rem;margin:0.25rem 0 1rem;color:#2c3e50; white-space: pre-wrap;}
+    /* keep it all on one line */
+    #ordersByDate{font-size:0.95rem;margin:0.25rem 0 1rem;color:#2c3e50; white-space: nowrap;}
     table{width:100%;border-collapse:collapse;background-color:white;box-shadow:0 1px 4px rgba(0,0,0,0.03);border-radius:6px;overflow:hidden;}
     th{background-color:#2c3e50;color:white;padding:0.6rem 0.75rem;text-align:left;white-space:nowrap;font-weight:500;}
     td{padding:0.6rem 0.75rem;border-top:1px solid #e1e5ea;}
     tr:nth-child(even){background-color:#f9fbfc;}
-    .styled-input {padding: 0.4rem 0.8rem; font-size: 0.9rem; border: 1px solid #ccc; border-radius: 4px; background: #f8fafc; color: #2c3e50; height: 34px; box-sizing: border-box; transition: border-color 0.2s;}
-    .styled-input:focus {border-color: #5a9bd5; outline: none}
   </style>
 </head>
 
@@ -43,7 +39,8 @@
     </div>
     <div style="display: flex; align-items: center; gap: 0.5rem;">
       <label for="exportFilename" style="font-size: 0.9rem;">File Name:</label>
-      <input type="text" id="exportFilename" placeholder="File name" class="styled-input" value="Sales_Report" />
+      <input type="text" id="exportFilename" placeholder="File name" value="Sales_Report"
+             style="padding:0.4rem 0.8rem; font-size:0.9rem; border:1px solid #ccc; border-radius:4px;" />
       <button onclick="exportToExcel()">Export to Excel</button>
     </div>
   </div>
@@ -66,47 +63,29 @@
     let masterDataRows = [];
     let masterOrderNumbers = new Set();
     let isFirstFile = true;
+    let updateFilesCount = 0;
 
     document.getElementById('fileInput').addEventListener('change', handleFiles);
 
     function mapShipFrom(value) {
-      switch (value) {
-        case 'WooParts NJ':
-        case 'AutoApex NJ':
-        case 'KP360 NJ':
-          return 'New Jersey Distribution Warehouse';
-        case 'WooParts IL':
-        case 'AutoApex IL':
-        case 'KP360 IL':
-          return 'Chicago Distribution Warehouse';
-        case 'WooParts GA':
-        case 'AutoApex GA':
-        case 'KP360 GEORGIA':
-          return 'Georgia Distribution Warehouse';
-        case 'WooParts CA':
-        case 'AutoApex CA':
-        case 'KP360 CALI':
-          return 'California Distribution Warehouse';
-        default:
-          return value;
-      }
+      const v = (value || '').trim().toLowerCase();
+      if (['wooparts nj','autoapex nj','kp360 nj'].includes(v))     return 'New Jersey Distribution Warehouse';
+      if (['wooparts il','autoapex il','kp360 il'].includes(v))     return 'Chicago Distribution Warehouse';
+      if (['wooparts ga','autoapex ga','kp360 georgia'].includes(v))return 'Georgia Distribution Warehouse';
+      if (['wooparts ca','autoapex ca','kp360 cali'].includes(v))   return 'California Distribution Warehouse';
+      return value;
     }
 
     function formatDate(dateValue) {
       if (typeof dateValue === 'number') {
-        const date = XLSX.SSF.parse_date_code(dateValue);
-        if (date) {
-          const mm = String(date.m).padStart(2, '0');
-          const dd = String(date.d).padStart(2, '0');
-          return `${mm}/${dd}/${date.y}`;
+        const d = XLSX.SSF.parse_date_code(dateValue);
+        if (d) {
+          return `${d.m}/${d.d}/${d.y}`;
         }
       }
-      const date = new Date(dateValue);
-      if (isNaN(date)) return dateValue;
-      const mm = String(date.getMonth() + 1).padStart(2, '0');
-      const dd = String(date.getDate()).padStart(2, '0');
-      const yyyy = date.getFullYear();
-      return `${mm}/${dd}/${yyyy}`;
+      const dt = new Date(dateValue);
+      if (isNaN(dt)) return dateValue;
+      return `${dt.getMonth()+1}/${dt.getDate()}/${dt.getFullYear()}`;
     }
 
     function handleFiles(event) {
@@ -116,61 +95,76 @@
         reader.onload = function(e) {
           let json = [];
           if (file.name.endsWith('.csv')) {
-            const csv = e.target.result;
-            const workbook = XLSX.read(csv, { type: 'string' });
-            json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+            const wb = XLSX.read(e.target.result, {type:'string'});
+            json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
           } else {
-            const workbook = XLSX.read(e.target.result, { type: 'binary' });
-            json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+            const wb = XLSX.read(e.target.result, {type:'binary'});
+            json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
           }
 
           if (isFirstFile) {
             masterDataRows = [];
             masterOrderNumbers.clear();
             json.forEach(row => {
-              const orderNumber = row["Order Number"] || row["Site Order ID"] || row["Order #"];
-              if (!orderNumber) return;
-              const recipient = (row["Recipient"] || `${row["Shipping First Name"]||''} ${row["Shipping Last Name"]||''}`).trim();
+              const ord = row["Order Number"]||row["Site Order ID"]||row["Order #"];
+              if (!ord) return;
+              const rec = (row["Recipient"]||`${row["Shipping First Name"]||''} ${row["Shipping Last Name"]||''}`).trim();
               masterDataRows.push({
                 "Order Date": formatDate(row["Order Date"]||''),
                 "Ship From": row["Ship From"] ? mapShipFrom(row["Ship From"]) : '',
-                "Order Number": orderNumber,
+                "Order Number": ord,
                 "Item SKU": row["Item SKU"]||row["SKU"]||'',
                 "Quantity": row["Quantity"]||'',
                 "Custom Field 1": row["Custom Field 1"]||'',
                 "Custom Field 2": row["Custom Field 2"]||'',
                 "Custom Field 3": row["Custom Field 3"]||'',
                 "Order Total": row["Order Total"]||'',
-                "Recipient": recipient,
+                "Recipient": rec,
                 "Rate": row["Rate"]||'',
                 "Service": (row["Service"]||'').replace(/®/g,''),
                 "Tracking Number": row["Tracking Number"]||'',
                 "PO Number": row["PO Number"]||''
               });
-              masterOrderNumbers.add(orderNumber);
+              masterOrderNumbers.add(ord);
             });
             isFirstFile = false;
           } else {
-            const updatesMap = new Map();
-            json.forEach(row => {
-              const orderNumber = row["Order Number"]||row["Site Order ID"]||row["Order #"];
-              if (!orderNumber||!masterOrderNumbers.has(orderNumber)) return;
-              if (!updatesMap.has(orderNumber)) updatesMap.set(orderNumber, []);
-              updatesMap.get(orderNumber).push(row);
+            const updates = new Map();
+            json.forEach(r => {
+              const ord = r["Order Number"]||r["Site Order ID"]||r["Order #"];
+              if (!ord || !masterOrderNumbers.has(ord)) return;
+              if (!updates.has(ord)) updates.set(ord, []);
+              updates.get(ord).push(r);
             });
-            for (const [orderNumber, updateRows] of updatesMap.entries()) {
-              let updateIdx = 0;
-              for (let i = 0; i < masterDataRows.length && updateIdx < updateRows.length; i++) {
-                if (masterDataRows[i]["Order Number"] === orderNumber) {
-                  const updateRow = updateRows[updateIdx++];
-                  for (const key in updateRow) {
-                    if ((!masterDataRows[i][key]||masterDataRows[i][key]==='')&&
-                        updateRow[key]!==undefined&&updateRow[key]!=='') {
-                      masterDataRows[i][key] = updateRow[key];
+            updates.forEach((rows, ord) => {
+              let idx = 0;
+              for (let i = 0; i < masterDataRows.length && idx < rows.length; i++) {
+                if (masterDataRows[i]["Order Number"] === ord) {
+                  const u = rows[idx++];
+                  for (const k in u) {
+                    if ((!masterDataRows[i][k] || masterDataRows[i][k] === '') && u[k] !== undefined && u[k] !== '') {
+                      masterDataRows[i][k] = u[k];
                     }
                   }
                 }
               }
+            });
+
+            updateFilesCount++;
+            if (updateFilesCount === 1) {
+              masterDataRows.forEach(r => {
+                if (!r["Ship From"]) {
+                  const sku = r["Item SKU"]||'';
+                  const cf1 = r["Custom Field 1"]||'';
+                  const cf2 = r["Custom Field 2"]||'';
+                  const cf3 = r["Custom Field 3"]||'';
+                  if (sku.includes("USA")||cf1.includes("USA")||cf2.includes("USA")||cf3.includes("USA")) {
+                    r["Ship From"] = "Usauto Dropship";
+                  } else if (sku.includes("MLX")) {
+                    r["Ship From"] = "Meyer Dropship";
+                  }
+                }
+              });
             }
           }
 
@@ -187,14 +181,14 @@
       const rows = filteredData || masterDataRows;
       document.getElementById('totalOrders').textContent = `Total Orders: ${rows.length}`;
 
-      // compute orders per date
+      // orders by date (horizontal, extra padding around |)
       const counts = {};
       rows.forEach(r => {
-        const d = r["Order Date"];
-        counts[d] = (counts[d]||0)+1;
+        counts[r["Order Date"]] = (counts[r["Order Date"]] || 0) + 1;
       });
-      const lines = Object.entries(counts).map(([d,c])=>`${d}: ${c}`);
-      document.getElementById('ordersByDate').innerHTML = `Orders by Date:<br>${lines.join('<br>')}`;
+      const parts = Object.entries(counts).map(([d,c]) => `${d}: ${c}`);
+      document.getElementById('ordersByDate').textContent =
+        `Orders by Date: ${parts.join('    |    ')}`;
 
       rows.forEach(row => {
         const tr = document.createElement('tr');
@@ -203,11 +197,11 @@
           "Custom Field 1","Custom Field 2","Custom Field 3","Order Total",
           "Recipient","Rate","Service","Tracking Number","PO Number"
         ].forEach(key => {
+          let val = row[key] || '';
+          if (key === "Service") val = val.replace(/®/g,'');
+          if (key === "Ship From" && val) val = mapShipFrom(val);
           const td = document.createElement('td');
-          let cellValue = row[key]||'';
-          if (key === "Service") cellValue = cellValue.replace(/®/g,'');
-          if (key === "Ship From") cellValue = mapShipFrom(cellValue);
-          td.textContent = cellValue;
+          td.textContent = val;
           tr.appendChild(td);
         });
         tbody.appendChild(tr);
@@ -215,31 +209,27 @@
     }
 
     function exportToExcel() {
-      let filename = document.getElementById('exportFilename').value.trim()||'Sales_Report';
-      filename = filename.replace(/\.xlsx$/i,'');
-      const table = document.getElementById('reportTable');
-      const headers = Array.from(table.querySelectorAll('thead th')).map(th=>th.textContent.trim());
-      const rows = Array.from(table.querySelectorAll('tbody tr')).map(tr=>
-        Array.from(tr.querySelectorAll('td')).map(td=>td.textContent)
-      );
-      const data = rows.map(r=>{
-        const obj = {};
-        headers.forEach((h,i)=>obj[h]=r[i]);
-        return obj;
-      });
+      let fn = document.getElementById('exportFilename').value.trim() || 'Sales_Report';
+      fn = fn.replace(/\.xlsx$/i,'');
+      const tbl = document.getElementById('reportTable');
+      const headers = Array.from(tbl.querySelectorAll('thead th')).map(th => th.textContent.trim());
+      const data = Array.from(tbl.querySelectorAll('tbody tr')).map(tr =>
+        Array.from(tr.querySelectorAll('td')).map(td => td.textContent)
+      ).map(r => Object.fromEntries(r.map((c,i) => [headers[i], c])));
       const ws = XLSX.utils.json_to_sheet(data);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb,ws,'Sales Report');
-      XLSX.writeFile(wb,filename + '.xlsx');
+      XLSX.utils.book_append_sheet(wb, ws, 'Sales Report');
+      XLSX.writeFile(wb, fn + '.xlsx');
     }
 
     function resetFilter() {
       masterDataRows = [];
       masterOrderNumbers.clear();
       isFirstFile = true;
+      updateFilesCount = 0;
       document.getElementById('fileInput').value = '';
       document.getElementById('totalOrders').textContent = 'Total Orders: 0';
-      document.getElementById('ordersByDate').textContent = 'Orders by Date:';
+      document.getElementById('ordersByDate').textContent = 'Orders by Date:'; 
       document.querySelector('#reportTable tbody').innerHTML = '';
     }
   </script>
