@@ -8,12 +8,10 @@
   <style>
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f9fafb; margin: 0; padding: 2rem; color: #333; }
     h2 { color: #2c3e50; margin-bottom: 1rem; }
-    input[type="file"], input[type="checkbox"] { margin-bottom: 1rem; }
+    input[type="file"] { margin-bottom: 1rem; }
     button { background-color: #1f6feb; color: #fff; border: none; padding: 0.5rem 1rem; margin: 0.2rem; border-radius: 4px; cursor: pointer; font-weight: 600; }
     button:hover { background-color: #155ac4; }
     #totalOrders { margin-top: 1rem; font-weight: bold; }
-    #dateOptions { margin-top: 1rem; padding: 0.5rem; background: #eef2f7; border-radius: 4px; display: none; }
-    #dateOptions label { margin-right: 1rem; }
     table { width: 100%; background-color: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.05); border-collapse: collapse; margin-top: 1rem; }
     th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
     th { background-color: #f1f3f5; font-weight: bold; }
@@ -30,16 +28,6 @@
   <h2>Profit / Loss Report</h2>
   <input type="file" id="fileUpload" multiple accept=".csv,.xlsx,.xls">
   <button onclick="resetReport()">Reset</button>
-  <label>
-    <input type="checkbox" id="sepByDate" onchange="toggleDateOptions()">
-    Separate by Date
-  </label>
-
-  <div id="dateOptions">
-    <strong>Select date(s):</strong>
-    <div id="dateFilters"></div>
-  </div>
-
   <button onclick="exportTableToExcel('reportTable','profit_loss_report')">Export as Excel</button>
   <p id="totalOrders">Total Orders: 0</p>
 
@@ -69,18 +57,13 @@
   </table>
 
   <script>
-    // format any date input into M/D/YYYY, stripping time
     function formatDate(value) {
       let d = value instanceof Date ? value : new Date(value);
       if (isNaN(d)) return "";
-      const m = d.getMonth() + 1;
-      const day = d.getDate();
-      const y = d.getFullYear();
-      return `${m}/${day}/${y}`;
+      return `${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()}`;
     }
 
-    let masterData = [];
-    let isFirstFile = true;
+    let masterData = [], isFirstFile = true;
     const tableBody = document.querySelector("#reportTable tbody");
     const totalOrdersEl = document.getElementById("totalOrders");
 
@@ -88,28 +71,20 @@
       masterData = [];
       isFirstFile = true;
       document.getElementById("fileUpload").value = "";
-      document.getElementById("dateFilters").innerHTML = "";
-      toggleDateOptions();
       updateTable();
     }
 
     document.getElementById("fileUpload").addEventListener("change", handleFileUpload);
 
     function handleFileUpload(evt) {
-      const files = evt.target.files;
-      Array.from(files).forEach(file => {
+      Array.from(evt.target.files).forEach(file => {
         const reader = new FileReader();
         reader.onload = e => {
-          let wb;
-          if (file.name.endsWith(".csv")) {
-            wb = XLSX.read(e.target.result, { type: 'binary', cellDates: true });
-          } else {
-            wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
-          }
-          const sheet = wb.Sheets[wb.SheetNames[0]];
-          const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+          const wb = file.name.endsWith(".csv")
+            ? XLSX.read(e.target.result, { type:'binary', cellDates:true })
+            : XLSX.read(new Uint8Array(e.target.result), { type:'array', cellDates:true });
+          const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval:"" });
           mergeData(json);
-          populateDateOptions();
           updateTable();
         };
         if (file.name.endsWith(".csv")) reader.readAsBinaryString(file);
@@ -121,28 +96,30 @@
       newData.forEach(row => {
         const id = row["Site Order ID"] || row["Order Number"] || row["Order #"];
         if (!id) return;
-        // get and format date-only
-        const raw = row["Order Date"] || row["Date"] || "";
-        const dateOnly = formatDate(raw);
+        const dateOnly = formatDate(row["Order Date"] || row["Date"] || "");
+
         if (isFirstFile) {
           const obj = buildRow(row);
-          obj["Site Order ID"] = id;
-          obj["Order Date"] = dateOnly;
+          obj["Site Order ID"]   = id;
+          obj["Order Date"]      = dateOnly;
           masterData.push(obj);
         } else {
           masterData.forEach(existing => {
             if (existing["Site Order ID"] === id) {
               const updated = buildRow(row);
-              Object.keys(updated).forEach(k => {
-                if ((existing[k] === "" || existing[k] === 0 || existing[k] == null)
-                    && updated[k] != null) {
-                  existing[k] = updated[k];
+              Object.keys(updated).forEach(field => {
+                if (field === "Unit Sales Price" || field === "Total Supplier Cost") {
+                  existing[field] = +(((existing[field]||0) + (updated[field]||0))).toFixed(2);
+                } else if (
+                  (existing[field] === "" ||
+                   existing[field] === 0 ||
+                   existing[field] == null)
+                  && updated[field] != null
+                ) {
+                  existing[field] = updated[field];
                 }
               });
-              // only set date if missing
-              if (!existing["Order Date"]) {
-                existing["Order Date"] = dateOnly;
-              }
+              if (!existing["Order Date"]) existing["Order Date"] = dateOnly;
               recalculateFields(existing);
             }
           });
@@ -154,7 +131,7 @@
     function buildRow(row) {
       const pickNum = aliases => {
         for (const k of aliases) {
-          if (row[k] !== undefined && row[k] !== "") {
+          if (row[k] != null && row[k] !== "") {
             const n = parseFloat(row[k]);
             if (!isNaN(n)) return n;
           }
@@ -171,19 +148,19 @@
         "SS Shipping Price": ["Rate","SS Shipping Price"]
       };
       const obj = {};
-      Object.entries(mappings).forEach(([f,a]) => { obj[f] = pickNum(a); });
+      Object.entries(mappings).forEach(([f,a]) => obj[f] = pickNum(a));
       recalculateFields(obj);
       return obj;
     }
 
     function recalculateFields(r) {
-      r["Sales Order Total"] = +(r["Total Amount Paid"] + r["Total Tax Price"] + r["Total Shipping Paid"]).toFixed(2);
-      r["Merchant / List Fee"]  = +(r["Sales Order Total"] * 0.13).toFixed(2);
-      r["Total Cost"]           = +((r["Total Supplier Cost"] || 0) + r["SS Shipping Price"] + r["Merchant / List Fee"]).toFixed(2);
-      r["Net Profit"]           = +(r["Sales Order Total"] - r["Total Cost"] - r["Total Tax Price"]).toFixed(2);
-      r["NPM"]                  = r["Sales Order Total"]
-                                  ? ((r["Net Profit"] / r["Sales Order Total"]) * 100).toFixed(2)
-                                  : "0.00";
+      r["Sales Order Total"]  = +(r["Total Amount Paid"] + r["Total Tax Price"] + r["Total Shipping Paid"]).toFixed(2);
+      r["Merchant / List Fee"] = +(r["Sales Order Total"] * 0.13).toFixed(2);
+      r["Total Cost"]          = +((r["Total Supplier Cost"]||0) + r["SS Shipping Price"] + r["Merchant / List Fee"]).toFixed(2);
+      r["Net Profit"]          = +(r["Sales Order Total"] - r["Total Cost"] - r["Total Tax Price"]).toFixed(2);
+      r["NPM"]                 = r["Sales Order Total"]
+                                 ? ((r["Net Profit"]/r["Sales Order Total"])*100).toFixed(2)
+                                 : "0.00";
     }
 
     function updateTable() {
@@ -198,137 +175,106 @@
 
       masterData.forEach(r => {
         const tr = document.createElement("tr");
-        const cols = [
-          "Order Date","Site Order ID","Quantity","Unit Sales Price","Total Tax Price",
-          "Total Shipping Paid","Total Amount Paid","Sales Order Total",
-          "Total Supplier Cost","SS Shipping Price","Merchant / List Fee",
-          "Total Cost","Net Profit","NPM"
-        ];
-        cols.forEach(key => {
+        ["Order Date","Site Order ID","Quantity","Unit Sales Price","Total Tax Price",
+         "Total Shipping Paid","Total Amount Paid","Sales Order Total",
+         "Total Supplier Cost","SS Shipping Price","Merchant / List Fee",
+         "Total Cost","Net Profit","NPM"].forEach((key, ci) => {
           const td = document.createElement("td");
-          if (key === "NPM") {
-            td.textContent = parseFloat(r[key]).toFixed(2) + "%";
-          } else {
-            td.textContent = r[key] != null ? r[key] : "";
+          let value = r[key];
+
+          // if quantity >1, show unit_price * quantity
+          if (key === "Unit Sales Price" && r["Quantity"] > 1) {
+            value = +(r["Unit Sales Price"] * r["Quantity"]).toFixed(2);
           }
-          if ((key==="Net Profit"||key==="NPM") && parseFloat(r[key])<0) {
+
+          td.textContent = key === "NPM"
+                           ? parseFloat(value).toFixed(2) + "%"
+                           : (value != null ? value : "");
+
+          if ((key === "Net Profit" || key === "NPM") && parseFloat(value) < 0) {
             td.classList.add("negative");
           }
           tr.appendChild(td);
-          if (key in totals) totals[key] += parseFloat(r[key])||0;
+
+          if (key in totals) {
+            totals[key === "Unit Sales Price" && r["Quantity"] > 1 ? "Unit Sales Price" : key] += parseFloat(value) || 0;
+          }
         });
         tableBody.appendChild(tr);
         count++;
       });
 
-      // footer
-      const foot = document.querySelector("#reportTable tfoot tr");
-      foot.innerHTML = "";
-      // blank under Order Date
-      foot.appendChild(Object.assign(document.createElement("td"), { textContent: "" }));
-      const order = [
-        "Total","Quantity","Unit Sales Price","Total Tax Price",
-        "Total Shipping Paid","Total Amount Paid","Sales Order Total",
-        "Total Supplier Cost","SS Shipping Price","Merchant / List Fee",
-        "Total Cost","Net Profit","NPM"
-      ];
-      const net = totals["Net Profit"], sales = totals["Sales Order Total"];
-      const netm = sales ? ((net/sales)*100).toFixed(2)+"%" : "0.00%";
-      order.forEach(k => {
-        const td = document.createElement("td");
-        td.textContent = k === "Total"
-                          ? "Total"
-                          : (k === "NPM" ? netm : totals[k].toFixed(2));
-        foot.appendChild(td);
-      });
-
+      const foot  = document.querySelector("#reportTable tfoot tr");
+      const net   = totals["Net Profit"];
+      const sales = totals["Sales Order Total"];
+      const netm  = sales ? ((net/sales)*100).toFixed(2) + "%" : "0.00%";
+      foot.innerHTML = `
+        <td></td><td>Total</td>
+        <td>${totals["Quantity"].toFixed(2)}</td>
+        <td>${totals["Unit Sales Price"].toFixed(2)}</td>
+        <td>${totals["Total Tax Price"].toFixed(2)}</td>
+        <td>${totals["Total Shipping Paid"].toFixed(2)}</td>
+        <td>${totals["Total Amount Paid"].toFixed(2)}</td>
+        <td>${totals["Sales Order Total"].toFixed(2)}</td>
+        <td>${totals["Total Supplier Cost"].toFixed(2)}</td>
+        <td>${totals["SS Shipping Price"].toFixed(2)}</td>
+        <td>${totals["Merchant / List Fee"].toFixed(2)}</td>
+        <td>${totals["Total Cost"].toFixed(2)}</td>
+        <td>${totals["Net Profit"].toFixed(2)}</td>
+        <td>${netm}</td>
+      `;
       totalOrdersEl.textContent = `Total Orders: ${count}`;
     }
 
-    function populateDateOptions() {
-      const ctr = document.getElementById("dateFilters");
-      ctr.innerHTML = "";
-      const dates = Array.from(new Set(masterData.map(r=>r["Order Date"]))).filter(d=>d).sort();
-      dates.forEach(d => {
-        const lbl = document.createElement("label");
-        const cb  = document.createElement("input");
-        cb.type  = "checkbox"; cb.value = d;
-        lbl.appendChild(cb);
-        lbl.appendChild(document.createTextNode(" " + d));
-        ctr.appendChild(lbl);
-      });
-    }
-
-    function toggleDateOptions() {
-      document.getElementById("dateOptions").style.display =
-        document.getElementById("sepByDate").checked ? "block" : "none";
-    }
-
     function exportTableToExcel(tableID, filename) {
-      const sep = document.getElementById("sepByDate").checked;
-      if (sep) {
-        const checked = Array.from(document.querySelectorAll("#dateFilters input:checked"))
-                             .map(cb=>cb.value);
-        const wb = XLSX.utils.book_new();
-        checked.forEach(date => {
-          const subset = masterData.filter(r=>r["Order Date"]===date);
-          if (!subset.length) return;
-          const header = [
-            "Order Date","Site Order ID","Quantity","Unit Sales Price","Total Tax Price",
-            "Total Shipping Paid","Total Amount Paid","Sales Order Total",
-            "Total Supplier Cost","SS Shipping Price","Merchant / List Fee",
-            "Total Cost","Net Profit","NPM"
-          ];
-          const aoa = [header].concat(subset.map(r =>
-            header.map(h => {
-              if (h === "NPM") return parseFloat(r[h]) / 100;
-              return r[h];
-            })
-          ));
-          const ws = XLSX.utils.aoa_to_sheet(aoa);
-          const range = XLSX.utils.decode_range(ws['!ref']);
-          for (let R = 1; R <= range.e.r; ++R) {
-            const ref = XLSX.utils.encode_cell({r:R,c:13});
-            if (ws[ref] && typeof ws[ref].v === "number") {
-              ws[ref].t = "n";
-              ws[ref].z = "0.00%";
-            }
-          }
-          ws['!cols'] = header.map(()=>({wch:20}));
-          XLSX.utils.book_append_sheet(wb, ws, date);
-        });
-        XLSX.writeFile(wb, `${filename}.xlsx`);
-      } else {
-        const rows = document.querySelectorAll(`#${tableID} tr`);
-        const data = [], pct = new Set();
-        rows.forEach((r,ri) => {
-          const row = [];
-          r.querySelectorAll("th,td").forEach((c,ci) => {
-            const t = c.textContent.trim();
-            if (t.endsWith("%")) {
-              row.push(parseFloat(t)/100);
-              if (ri===0) pct.add(ci);
-            } else {
-              row.push(t);
-            }
-          });
-          data.push(row);
-        });
-        const ws = XLSX.utils.aoa_to_sheet(data);
-        const range = XLSX.utils.decode_range(ws['!ref']);
-        pct.forEach(c => {
-          for (let R=1; R<=range.e.r; ++R) {
-            const ref = XLSX.utils.encode_cell({r:R,c});
-            if (ws[ref] && typeof ws[ref].v==="number") {
-              ws[ref].t="n"; ws[ref].z="0.00%";
-            }
+      const rows = document.querySelectorAll(`#${tableID} tr`);
+      const data = [], pct = new Set();
+      rows.forEach((r, ri) => {
+        const row = [];
+        r.querySelectorAll("th,td").forEach((c, ci) => {
+          const t = c.textContent.trim();
+          if (t.endsWith("%")) {
+            row.push(parseFloat(t)/100);
+            if (ri === 0) pct.add(ci);
+          } else {
+            row.push(t);
           }
         });
-        ws['!cols'] = data[0].map(()=>({wch:20}));
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Report");
-        XLSX.writeFile(wb, `${filename}.xlsx`);
-      }
+        data.push(row);
+      });
+      const ws    = XLSX.utils.aoa_to_sheet(data);
+      const range = XLSX.utils.decode_range(ws['!ref']);
+
+      // keep percent columns numeric
+      pct.forEach(c => {
+        for (let R = 1; R <= range.e.r; ++R) {
+          const ref = XLSX.utils.encode_cell({r:R, c});
+          if (ws[ref] && typeof ws[ref].v === "number") {
+            ws[ref].t = "n";
+            ws[ref].z = "0.00%";
+          }
+        }
+      });
+
+      // force all other numeric columns (C–M) to numbers
+      [2,3,4,5,6,7,8,9,10,11,12].forEach(c => {
+        for (let R = 1; R <= range.e.r; ++R) {
+          const ref = XLSX.utils.encode_cell({r:R, c});
+          const cell = ws[ref];
+          if (cell && typeof cell.v === "string") {
+            const num = parseFloat(cell.v.replace(/,/g,''));
+            if (!isNaN(num)) {
+              cell.v = num;
+              cell.t = "n";
+            }
+          }
+        }
+      });
+
+      ws['!cols'] = data[0].map(() => ({wch:20}));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Report");
+      XLSX.writeFile(wb, `${filename}.xlsx`);
     }
   </script>
 
