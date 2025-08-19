@@ -67,13 +67,43 @@
 
     document.getElementById('fileInput').addEventListener('change', handleFiles);
 
-    function mapShipFrom(value) {
-      const v = (value || '').trim().toLowerCase();
-      if (['wooparts nj','autoapex nj','kp360 nj'].includes(v))     return 'New Jersey Distribution Warehouse';
-      if (['wooparts il','autoapex il','kp360 il'].includes(v))     return 'Chicago Distribution Warehouse';
-      if (['wooparts ga','autoapex ga','kp360 georgia'].includes(v))return 'Georgia Distribution Warehouse';
-      if (['wooparts ca','autoapex ca','kp360 cali'].includes(v))   return 'California Distribution Warehouse';
-      return value;
+    // --- Ship From helpers (PO Number first, then Item SKU with FBA priority) ---
+    function containsCodeAlphaBoundary(str, token) {
+      // Match token when neighbors are NOT letters A-Z (start/end/digit/symbol), to avoid "IL" in "CALI"
+      const s = (str || '').toUpperCase();
+      const t = token.toUpperCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp(`(^|[^A-Z])${t}([^A-Z]|$)`);
+      return re.test(s);
+    }
+
+    function computeShipFrom(row) {
+      const po = ((row["PO Number"] || '') + '').toUpperCase();
+      const skuRaw = row["Item SKU"] != null ? row["Item SKU"] : row["SKU"];
+      const sku = ((skuRaw || '') + '').toUpperCase();
+
+      // 1) PO Number rules (priority)
+      if (po) {
+        // Check longer words first to avoid partial collisions
+        if (po.includes('CALIFORNIA') || containsCodeAlphaBoundary(po, 'CALI') || containsCodeAlphaBoundary(po, 'CA')) {
+          return 'California Distribution Warehouse';
+        }
+        if (po.includes('GEORGIA') || containsCodeAlphaBoundary(po, 'GA')) {
+          return 'Georgia Distribution Warehouse';
+        }
+        if (containsCodeAlphaBoundary(po, 'NJ')) {
+          return 'New Jersey Distribution Warehouse';
+        }
+        if (containsCodeAlphaBoundary(po, 'IL')) {
+          return 'Chicago Distribution Warehouse';
+        }
+      }
+
+      // 2) No PO Number → Item SKU rules (FBA priority)
+      if (sku.includes('FBA')) return 'FBA Warehouse';
+      if (sku.includes('USA')) return 'Usauto Dropship';
+      if (sku.includes('MLX')) return 'Meyer Dropship';
+
+      return '';
     }
 
     function formatDate(dateValue) {
@@ -109,11 +139,14 @@
               const ord = row["Order Number"]||row["Site Order ID"]||row["Order #"];
               if (!ord) return;
               const rec = (row["Recipient"]||`${row["Shipping First Name"]||''} ${row["Shipping Last Name"]||''}`).trim();
+              const itemSku = row["Item SKU"]||row["SKU"]||'';
+              const computedShipFrom = computeShipFrom(row); // uses PO Number first; if none, uses Item SKU/ SKU
+
               masterDataRows.push({
                 "Order Date": formatDate(row["Order Date"]||''),
-                "Ship From": row["Ship From"] ? mapShipFrom(row["Ship From"]) : '',
+                "Ship From": computedShipFrom,
                 "Order Number": ord,
-                "Item SKU": row["Item SKU"]||row["SKU"]||'',
+                "Item SKU": itemSku,
                 "Quantity": row["Quantity"]||'',
                 "Custom Field 1": row["Custom Field 1"]||'',
                 "Custom Field 2": row["Custom Field 2"]||'',
@@ -136,6 +169,8 @@
               if (!updates.has(ord)) updates.set(ord, []);
               updates.get(ord).push(r);
             });
+
+            // Apply updates field-by-field if target is blank
             updates.forEach((rows, ord) => {
               let idx = 0;
               for (let i = 0; i < masterDataRows.length && idx < rows.length; i++) {
@@ -150,22 +185,12 @@
               }
             });
 
+            // After merging updates, recompute Ship From for all rows using latest PO Number / Item SKU
+            masterDataRows = masterDataRows.map(r => {
+              return { ...r, "Ship From": computeShipFrom(r) };
+            });
+
             updateFilesCount++;
-            if (updateFilesCount === 1) {
-              masterDataRows.forEach(r => {
-                if (!r["Ship From"]) {
-                  const sku = r["Item SKU"]||'';
-                  const cf1 = r["Custom Field 1"]||'';
-                  const cf2 = r["Custom Field 2"]||'';
-                  const cf3 = r["Custom Field 3"]||'';
-                  if (sku.includes("USA")||cf1.includes("USA")||cf2.includes("USA")||cf3.includes("USA")) {
-                    r["Ship From"] = "Usauto Dropship";
-                  } else if (sku.includes("MLX")) {
-                    r["Ship From"] = "Meyer Dropship";
-                  }
-                }
-              });
-            }
           }
 
           renderTable();
@@ -199,7 +224,6 @@
         ].forEach(key => {
           let val = row[key] || '';
           if (key === "Service") val = val.replace(/®/g,'');
-          if (key === "Ship From" && val) val = mapShipFrom(val);
           const td = document.createElement('td');
           td.textContent = val;
           tr.appendChild(td);
