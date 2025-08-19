@@ -17,7 +17,6 @@
     button {background-color: #5a9bd5; color: white; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.2s ease;}
     button:hover {background-color: #4a89c2;}
     #totalOrders{font-size:1rem;margin:0.75rem 0 0.5rem;color:#2c3e50;}
-    /* keep it all on one line */
     #ordersByDate{font-size:0.95rem;margin:0.25rem 0 1rem;color:#2c3e50; white-space: nowrap;}
     table{width:100%;border-collapse:collapse;background-color:white;box-shadow:0 1px 4px rgba(0,0,0,0.03);border-radius:6px;overflow:hidden;}
     th{background-color:#2c3e50;color:white;padding:0.6rem 0.75rem;text-align:left;white-space:nowrap;font-weight:500;}
@@ -67,9 +66,13 @@
 
     document.getElementById('fileInput').addEventListener('change', handleFiles);
 
+    // NEW: helper to check if SKU has FBA
+    function skuHasFBA(sku) {
+      return ((sku || '') + '').toUpperCase().includes('FBA');
+    }
+
     // --- Ship From helpers (PO Number first, then Item SKU with FBA priority) ---
     function containsCodeAlphaBoundary(str, token) {
-      // Match token when neighbors are NOT letters A-Z (start/end/digit/symbol), to avoid "IL" in "CALI"
       const s = (str || '').toUpperCase();
       const t = token.toUpperCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const re = new RegExp(`(^|[^A-Z])${t}([^A-Z]|$)`);
@@ -81,9 +84,7 @@
       const skuRaw = row["Item SKU"] != null ? row["Item SKU"] : row["SKU"];
       const sku = ((skuRaw || '') + '').toUpperCase();
 
-      // 1) PO Number rules (priority)
       if (po) {
-        // Check longer words first to avoid partial collisions
         if (po.includes('CALIFORNIA') || containsCodeAlphaBoundary(po, 'CALI') || containsCodeAlphaBoundary(po, 'CA')) {
           return 'California Distribution Warehouse';
         }
@@ -98,7 +99,6 @@
         }
       }
 
-      // 2) No PO Number → Item SKU rules (FBA priority)
       if (sku.includes('FBA')) return 'FBA Warehouse';
       if (sku.includes('USA')) return 'Usauto Dropship';
       if (sku.includes('MLX')) return 'Meyer Dropship';
@@ -140,7 +140,11 @@
               if (!ord) return;
               const rec = (row["Recipient"]||`${row["Shipping First Name"]||''} ${row["Shipping Last Name"]||''}`).trim();
               const itemSku = row["Item SKU"]||row["SKU"]||'';
-              const computedShipFrom = computeShipFrom(row); // uses PO Number first; if none, uses Item SKU/ SKU
+              const computedShipFrom = computeShipFrom(row);
+
+              // Apply FBA → Custom Field 1 rule
+              let cf1 = row["Custom Field 1"]||'';
+              if (skuHasFBA(itemSku)) cf1 = itemSku;
 
               masterDataRows.push({
                 "Order Date": formatDate(row["Order Date"]||''),
@@ -148,7 +152,7 @@
                 "Order Number": ord,
                 "Item SKU": itemSku,
                 "Quantity": row["Quantity"]||'',
-                "Custom Field 1": row["Custom Field 1"]||'',
+                "Custom Field 1": cf1,
                 "Custom Field 2": row["Custom Field 2"]||'',
                 "Custom Field 3": row["Custom Field 3"]||'',
                 "Order Total": row["Order Total"]||'',
@@ -170,7 +174,6 @@
               updates.get(ord).push(r);
             });
 
-            // Apply updates field-by-field if target is blank
             updates.forEach((rows, ord) => {
               let idx = 0;
               for (let i = 0; i < masterDataRows.length && idx < rows.length; i++) {
@@ -185,9 +188,13 @@
               }
             });
 
-            // After merging updates, recompute Ship From for all rows using latest PO Number / Item SKU
+            // Recompute Ship From and CF1 after updates
             masterDataRows = masterDataRows.map(r => {
-              return { ...r, "Ship From": computeShipFrom(r) };
+              const updated = { ...r, "Ship From": computeShipFrom(r) };
+              if (skuHasFBA(r["Item SKU"])) {
+                updated["Custom Field 1"] = r["Item SKU"];
+              }
+              return updated;
             });
 
             updateFilesCount++;
@@ -206,7 +213,6 @@
       const rows = filteredData || masterDataRows;
       document.getElementById('totalOrders').textContent = `Total Orders: ${rows.length}`;
 
-      // orders by date (horizontal, extra padding around |)
       const counts = {};
       rows.forEach(r => {
         counts[r["Order Date"]] = (counts[r["Order Date"]] || 0) + 1;
