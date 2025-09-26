@@ -7,18 +7,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
   <style>
-    :root{
-      --bg: #f6f8fb; --panel:#fff; --panel-2:#fcfdff; --text:#0f172a; --muted:#445268;
-      --brand:#2563eb; --brand-2:#06b6d4; --border:#dbe2ea; --ring: rgba(37,99,235,.25);
-      --chip-bg:#f8fafc; --chip-border:#e2e8f0; --input-bg:#fff; --input-border:#cbd5e1; --input-text:#0f172a;
-      --table-alt:#f1f5f9; --table-hover:#eef6ff; --button-text:#fff;
-    }
-    :root[data-theme="dark"]{
-      --bg:#0b1220; --panel:#0f172a; --panel-2:#0b1224; --text:#e6edf3; --muted:#9fb1c7;
-      --brand:#60a5fa; --brand-2:#22d3ee; --border:#1f2a3a; --ring:rgba(110,231,255,.35);
-      --chip-bg:#0f172a; --chip-border:#1f2a3a; --input-bg:#0b1220; --input-border:#233048; --input-text:#e6edf3;
-      --table-alt: rgba(255,255,255,.02); --table-hover: rgba(96,165,250,.07); --button-text:#0b1220;
-    }
+    :root{--bg: #f6f8fb; --panel:#fff; --panel-2:#fcfdff; --text:#0f172a; --muted:#445268;--brand:#2563eb; --brand-2:#06b6d4; --border:#dbe2ea; --ring: rgba(37,99,235,.25);--chip-bg:#f8fafc; --chip-border:#e2e8f0; --input-bg:#fff; --input-border:#cbd5e1; --input-text:#0f172a;--table-alt:#f1f5f9; --table-hover:#eef6ff; --button-text:#fff;}
+    :root[data-theme="dark"]{--bg:#0b1220; --panel:#0f172a; --panel-2:#0b1224; --text:#e6edf3; --muted:#9fb1c7;--brand:#60a5fa; --brand-2:#22d3ee; --border:#1f2a3a; --ring:rgba(110,231,255,.35);--chip-bg:#0f172a; --chip-border:#1f2a3a; --input-bg:#0b1220; --input-border:#233048; --input-text:#e6edf3;--table-alt: rgba(255,255,255,.02); --table-hover: rgba(96,165,250,.07); --button-text:#0b1220;}
     *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui; padding:14px}
     .shell{width:100%}
     .header,.controls{background:linear-gradient(180deg,var(--panel),var(--panel-2)); border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:12px}
@@ -26,33 +16,33 @@
     h1{margin:0;font-size:20px}
     .left-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
     .right-tools{display:flex;gap:8px;align-items:center;justify-content:flex-end}
-    input[type="file"],input[type="text"]{padding:8px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--input-text);border-radius:10px;min-width:240px}
+    input[type="file"],.top-input{padding:8px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--input-text);border-radius:10px;min-width:240px}
     button{padding:9px 12px;border:0;border-radius:10px;background:linear-gradient(180deg, var(--brand), var(--brand-2));color:var(--button-text);font-weight:600;cursor:pointer}
     .pill{padding:6px 10px;border:1px solid var(--input-border);border-radius:999px;background:var(--input-bg);color:#445268;font-size:12px;cursor:pointer}
     .pill.active{outline:3px solid var(--ring)}
     #meta{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px}
     .chip{font-size:12px;border:1px solid var(--chip-border);background:var(--chip-bg);border-radius:999px;padding:6px 10px;color:#475569}
-
-    .table-wrap{
-      width:100%; height:72vh; overflow:auto;
-      border:1px solid var(--border); border-radius:12px;
-      background:linear-gradient(180deg,var(--panel),var(--panel-2)); box-shadow:0 6px 18px rgba(0,0,0,.12);
-    }
+    .table-wrap{ width:100%; height:72vh; overflow:auto;border:1px solid var(--border); border-radius:12px;background:linear-gradient(180deg,var(--panel),var(--panel-2)); box-shadow:0 6px 18px rgba(0,0,0,.12); }
     table{width:100%; border-collapse:separate; border-spacing:0}
     thead th{ position:sticky; top:0; z-index:5; background:var(--panel); color:var(--text);
       text-align:left; padding:10px 12px; font-weight:600; font-size:12px; letter-spacing:.2px; border-bottom:1px solid var(--border); white-space:nowrap; }
     tbody td{ padding:9px 12px; border-bottom:1px solid var(--border); font-size:13px; color:var(--text) }
     tbody tr:nth-child(odd) td{ background:var(--table-alt) }
     tbody tr:hover td{ background:var(--table-hover) }
+    .po-edit,.cf-edit{width: 220px; max-width: 100%; padding: 6px 8px;border:1px solid var(--input-border); border-radius:8px; background:var(--input-bg); color:var(--input-text);}
     .hidden{display:none}
+    .author {margin: 4px 0 0 0;font-size: 13px;color: var(--muted);font-style: italic;}
   </style>
 </head>
 <body>
   <div class="shell">
     <div class="header" style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center">
-      <h1>WooParts &amp; AutoApex — Sales Report/Order Generator</h1>
-      <div class="right-tools"><button id="themeToggle">Theme Toggle</button></div>
-    </div>
+  <div>
+    <h1>WooParts &amp; AutoApex — Sales Report/Order Generator</h1>
+    <p class="author">by Christine Anastacio</p>
+  </div>
+  <div class="right-tools"><button id="themeToggle">🌗</button></div>
+</div>
 
     <div class="controls" style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center">
       <div class="left-controls">
@@ -65,7 +55,7 @@
       </div>
       <div class="right-tools">
         <label for="exportFilename">Export as</label>
-        <input type="text" id="exportFilename" placeholder="File name" value="Sales_Report" />
+        <input type="text" id="exportFilename" class="top-input" placeholder="File name" value="Sales_Report" />
         <button onclick="exportCurrent()">Export Current View</button>
       </div>
     </div>
@@ -75,7 +65,6 @@
       <div id="ordersByDate" class="chip">Orders by Date:</div>
     </div>
 
-    <!-- Report (unchanged) -->
     <div class="table-wrap" id="reportWrap">
       <table id="reportTable">
         <thead>
@@ -91,7 +80,6 @@
 
     <div style="height:10px"></div>
 
-    <!-- Order (headers changed + Memo added) -->
     <div class="table-wrap hidden" id="orderWrap">
       <table id="orderTable">
         <thead>
@@ -117,7 +105,7 @@
       localStorage.setItem('kp360_theme_v1', next);
     });
 
-    // === Original app JS with minimal additions for Sales Order header mapping ===
+    // === Original app JS with PO & CF edits wired to the data model ===
     let masterDataRows = [];
     let masterOrderNumbers = new Set();
     let isFirstFile = true;
@@ -230,7 +218,8 @@
               }
             });
             masterDataRows = masterDataRows.map(r => {
-              const updated = { ...r, "Ship From": computeShipFrom(r) };
+              const updated = { ...r };
+              updated["Ship From"] = computeShipFrom(updated);
               if (skuHasFBA(r["Item SKU"])) updated["Custom Field 1"] = r["Item SKU"];
               return updated;
             });
@@ -243,6 +232,7 @@
         else reader.readAsBinaryString(file);
       });
     }
+
     function renderReport(filteredData = null) {
       const tbody = document.getElementById('reportTable').querySelector('tbody');
       tbody.innerHTML = '';
@@ -252,15 +242,49 @@
       rows.forEach(r => { counts[r["Order Date"]] = (counts[r["Order Date"]] || 0) + 1; });
       const parts = Object.entries(counts).map(([d,c]) => `${d}: ${c}`);
       document.getElementById('ordersByDate').textContent = `Orders by Date: ${parts.join('    |    ')}`;
-      rows.forEach(row => tbody.appendChild(buildReportRowTr(row)));
+
+      rows.forEach((row, idx) => tbody.appendChild(buildReportRowTr(row, idx)));
     }
-    function buildReportRowTr(row){
+
+    // Build Report Row (PO Number + Custom Fields editable)
+    function buildReportRowTr(row, idx){
       const tr = document.createElement('tr');
       const keys = ["Order Date","Ship From","Order Number","Item SKU","Quantity","Custom Field 1","Custom Field 2","Custom Field 3","Order Total","Recipient","Rate","Service","Tracking Number","PO Number"];
       keys.forEach(key => {
-        let val = row[key] || '';
-        if (key === "Service") val = (val+'').replace(/®/g,'');
-        const td = document.createElement('td'); td.textContent = val; tr.appendChild(td);
+        const td = document.createElement('td');
+
+        if (key === "Service") {
+          td.textContent = (row[key] || '').toString().replace(/®/g,'');
+        } else if (key === "PO Number") {
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.className = 'po-edit';
+          input.value = row["PO Number"] || '';
+          input.placeholder = 'Enter PO Number';
+          input.addEventListener('change', (e) => {
+            const newPO = e.target.value;
+            masterDataRows[idx]["PO Number"] = newPO;
+            // Recompute Ship From for this row
+            masterDataRows[idx]["Ship From"] = computeShipFrom(masterDataRows[idx]);
+            // Update UI cells for Ship From
+            const shipFromCell = tr.children[1]; // index 1 is "Ship From"
+            if (shipFromCell) shipFromCell.textContent = masterDataRows[idx]["Ship From"] || '';
+          });
+          td.appendChild(input);
+        } else if (key === "Custom Field 1" || key === "Custom Field 2" || key === "Custom Field 3") {
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.className = 'cf-edit';
+          input.value = row[key] || '';
+          input.placeholder = key;
+          input.addEventListener('change', (e) => {
+            masterDataRows[idx][key] = e.target.value || '';
+          });
+          td.appendChild(input);
+        } else {
+          td.textContent = row[key] || '';
+        }
+        tr.appendChild(td);
       });
       return tr;
     }
@@ -279,11 +303,11 @@
         ["Custom Field 3","Custom Field 3"],
         ["Order Total","Order Total"],
         ["Recipient","Recipient"],
-        ["Carrier Fee","Rate"],                 // renamed
+        ["Carrier Fee","Rate"],
         ["Service","Service"],
         ["Tracking Number","Tracking Number"],
-        ["PO Reference Number","PO Number"],    // renamed
-        ["Memo",""]                             // new, empty
+        ["PO Reference Number","PO Number"],
+        ["Memo",""]
       ];
       map.forEach(([header, key]) => {
         let val = key ? (row[key] || '') : '';
@@ -295,9 +319,28 @@
 
     function buildSalesOrderLines(baseRow){
       const lines = [];
-      const cfParts = [baseRow["Custom Field 1"], baseRow["Custom Field 2"]].map(v => (v || '').toString().trim()).filter(v => v.length > 0).sort((a,b) => a.localeCompare(b, undefined, {numeric:true, sensitivity:'base'}));
-      const common = {"Order Date": baseRow["Order Date"], "Ship From": baseRow["Ship From"], "Order Number": baseRow["Order Number"], "Item SKU": baseRow["Item SKU"], "Quantity": baseRow["Quantity"] || 1, "Order Total": baseRow["Order Total"], "Recipient": baseRow["Recipient"], "PO Number": baseRow["PO Number"], "Rate": baseRow["Rate"] || "", "Service": (baseRow["Service"] || "").replace(/®/g,''), "Tracking Number": baseRow["Tracking Number"] || ""};
-      cfParts.forEach(val => { lines.push({...common, "Custom Field 1": val, "Custom Field 2": "", "Custom Field 3": "", "Rate":"", "Service":"", "Tracking Number":""}); });
+      const cfParts = [baseRow["Custom Field 1"], baseRow["Custom Field 2"]]
+        .map(v => (v || '').toString().trim())
+        .filter(v => v.length > 0)
+        .sort((a,b) => a.localeCompare(b, undefined, {numeric:true, sensitivity:'base'}));
+      const common = {
+        "Order Date": baseRow["Order Date"],
+        "Ship From": baseRow["Ship From"],
+        "Order Number": baseRow["Order Number"],
+        "Item SKU": baseRow["Item SKU"],
+        "Quantity": baseRow["Quantity"] || 1,
+        "Order Total": baseRow["Order Total"],
+        "Recipient": baseRow["Recipient"],
+        "PO Number": baseRow["PO Number"],
+        "Rate": baseRow["Rate"] || "",
+        "Service": (baseRow["Service"] || "").replace(/®/g,''),
+        "Tracking Number": baseRow["Tracking Number"] || ""
+      };
+      // Item lines (no shipping data)
+      cfParts.forEach(val => {
+        lines.push({...common, "Custom Field 1": val, "Custom Field 2": "", "Custom Field 3": "", "Rate":"", "Service":"", "Tracking Number":""});
+      });
+      // Shipping line
       lines.push({...common, "Custom Field 1":"Shipping (WD)", "Custom Field 2":"", "Custom Field 3":"", "Rate": baseRow["Rate"] || "", "Service": (baseRow["Service"] || "").replace(/®/g,''), "Tracking Number": baseRow["Tracking Number"] || ""});
       return lines;
     }
@@ -320,7 +363,6 @@
 
       if(currentView==='order'){
         const exploded = masterDataRows.flatMap(r => buildSalesOrderLines(r));
-        // Export with new column headers & mapping
         headers = ["Order Date","Ship From","Order Number","Item SKU","Quantity","Custom Field 1","Custom Field 2","Custom Field 3","Order Total","Recipient","Carrier Fee","Service","Tracking Number","PO Reference Number","Memo"];
         data = exploded.map(r => ({
           "Order Date": r["Order Date"] || "",
@@ -333,18 +375,19 @@
           "Custom Field 3": r["Custom Field 3"] || "",
           "Order Total": r["Order Total"] || "",
           "Recipient": r["Recipient"] || "",
-          "Carrier Fee": r["Rate"] || "",                  // mapped from Rate
+          "Carrier Fee": r["Rate"] || "",
           "Service": (r["Service"] || ""),
           "Tracking Number": r["Tracking Number"] || "",
-          "PO Reference Number": r["PO Number"] || "",     // mapped from PO Number
-          "Memo": ""                                       // new empty column
+          "PO Reference Number": r["PO Number"] || "",
+          "Memo": ""
         }));
       } else {
-        const tbl = document.getElementById('reportTable');
-        headers = Array.from(tbl.querySelectorAll('thead th')).map(th => th.textContent.trim());
-        data = Array.from(tbl.querySelectorAll('tbody tr')).map(tr =>
-          Array.from(tr.querySelectorAll('td')).map(td => td.textContent)
-        ).map(r => Object.fromEntries(r.map((c,i) => [headers[i], c])));
+        headers = ["Order Date","Ship From","Order Number","Item SKU","Quantity","Custom Field 1","Custom Field 2","Custom Field 3","Order Total","Recipient","Rate","Service","Tracking Number","PO Number"];
+        data = masterDataRows.map(r => {
+          const obj = {};
+          headers.forEach(h => obj[h] = r[h] || '');
+          return obj;
+        });
       }
 
       const ws = XLSX.utils.json_to_sheet(data, {header: headers});
