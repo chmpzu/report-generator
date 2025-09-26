@@ -33,28 +33,17 @@
     #meta{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px}
     .chip{font-size:12px;border:1px solid var(--chip-border);background:var(--chip-bg);border-radius:999px;padding:6px 10px;color:#475569}
 
-    /* Scroll containers so THEAD sticks to top of table, not the page */
     .table-wrap{
-      width:100%;
-      height: 72vh;           /* visible window for the table */
-      overflow: auto;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: linear-gradient(180deg,var(--panel),var(--panel-2));
-      box-shadow: 0 6px 18px rgba(0,0,0,.12);
+      width:100%; height:72vh; overflow:auto;
+      border:1px solid var(--border); border-radius:12px;
+      background:linear-gradient(180deg,var(--panel),var(--panel-2)); box-shadow:0 6px 18px rgba(0,0,0,.12);
     }
     table{width:100%; border-collapse:separate; border-spacing:0}
-    thead th{
-      position: sticky;
-      top: 0;                 /* <-- key change */
-      z-index: 5;
-      background: var(--panel);
-      color: var(--text);
-      text-align:left; padding:10px 12px; font-weight:600; font-size:12px; letter-spacing:.2px; border-bottom:1px solid var(--border); white-space:nowrap;
-    }
-    tbody td{padding:9px 12px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text)}
-    tbody tr:nth-child(odd) td{background:var(--table-alt)}
-    tbody tr:hover td{background:var(--table-hover)}
+    thead th{ position:sticky; top:0; z-index:5; background:var(--panel); color:var(--text);
+      text-align:left; padding:10px 12px; font-weight:600; font-size:12px; letter-spacing:.2px; border-bottom:1px solid var(--border); white-space:nowrap; }
+    tbody td{ padding:9px 12px; border-bottom:1px solid var(--border); font-size:13px; color:var(--text) }
+    tbody tr:nth-child(odd) td{ background:var(--table-alt) }
+    tbody tr:hover td{ background:var(--table-hover) }
     .hidden{display:none}
   </style>
 </head>
@@ -62,7 +51,7 @@
   <div class="shell">
     <div class="header" style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center">
       <h1>WooParts &amp; AutoApex — Sales Report/Order Generator</h1>
-      <div class="right-tools">Theme <button id="themeToggle">Toggle</button></div>
+      <div class="right-tools"><button id="themeToggle">Theme Toggle</button></div>
     </div>
 
     <div class="controls" style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center">
@@ -86,7 +75,7 @@
       <div id="ordersByDate" class="chip">Orders by Date:</div>
     </div>
 
-    <!-- Tables in independent scroll containers -->
+    <!-- Report (unchanged) -->
     <div class="table-wrap" id="reportWrap">
       <table id="reportTable">
         <thead>
@@ -102,13 +91,14 @@
 
     <div style="height:10px"></div>
 
+    <!-- Order (headers changed + Memo added) -->
     <div class="table-wrap hidden" id="orderWrap">
       <table id="orderTable">
         <thead>
           <tr>
             <th>Order Date</th><th>Ship From</th><th>Order Number</th><th>Item SKU</th><th>Quantity</th>
             <th>Custom Field 1</th><th>Custom Field 2</th><th>Custom Field 3</th><th>Order Total</th>
-            <th>Recipient</th><th>Rate</th><th>Service</th><th>Tracking Number</th><th>PO Number</th>
+            <th>Recipient</th><th>Carrier Fee</th><th>Service</th><th>Tracking Number</th><th>PO Reference Number</th><th>Memo</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -127,7 +117,7 @@
       localStorage.setItem('kp360_theme_v1', next);
     });
 
-    // === Original app JS (unchanged) ===
+    // === Original app JS with minimal additions for Sales Order header mapping ===
     let masterDataRows = [];
     let masterOrderNumbers = new Set();
     let isFirstFile = true;
@@ -172,6 +162,7 @@
       if (sku.includes('FBA')) return 'FBA Warehouse';
       if (sku.includes('USA')) return 'Usauto Dropship';
       if (sku.includes('MLX')) return 'Meyer Dropship';
+      if (sku.includes('OLX')) return 'Tonsa Dropship';
       return '';
     }
     function formatDate(dateValue) {
@@ -261,28 +252,56 @@
       rows.forEach(r => { counts[r["Order Date"]] = (counts[r["Order Date"]] || 0) + 1; });
       const parts = Object.entries(counts).map(([d,c]) => `${d}: ${c}`);
       document.getElementById('ordersByDate').textContent = `Orders by Date: ${parts.join('    |    ')}`;
-      rows.forEach(row => tbody.appendChild(buildRowTr(row)));
+      rows.forEach(row => tbody.appendChild(buildReportRowTr(row)));
     }
-    function buildRowTr(row){
+    function buildReportRowTr(row){
       const tr = document.createElement('tr');
       const keys = ["Order Date","Ship From","Order Number","Item SKU","Quantity","Custom Field 1","Custom Field 2","Custom Field 3","Order Total","Recipient","Rate","Service","Tracking Number","PO Number"];
       keys.forEach(key => {
         let val = row[key] || '';
         if (key === "Service") val = (val+'').replace(/®/g,'');
-        const td = document.createElement('td');
-        td.textContent = val;
-        tr.appendChild(td);
+        const td = document.createElement('td'); td.textContent = val; tr.appendChild(td);
       });
       return tr;
     }
+
+    // Sales Order row builder with new headers/mapping (data unchanged)
+    function buildOrderRowTr(row){
+      const tr = document.createElement('tr');
+      const map = [
+        ["Order Date","Order Date"],
+        ["Ship From","Ship From"],
+        ["Order Number","Order Number"],
+        ["Item SKU","Item SKU"],
+        ["Quantity","Quantity"],
+        ["Custom Field 1","Custom Field 1"],
+        ["Custom Field 2","Custom Field 2"],
+        ["Custom Field 3","Custom Field 3"],
+        ["Order Total","Order Total"],
+        ["Recipient","Recipient"],
+        ["Carrier Fee","Rate"],                 // renamed
+        ["Service","Service"],
+        ["Tracking Number","Tracking Number"],
+        ["PO Reference Number","PO Number"],    // renamed
+        ["Memo",""]                             // new, empty
+      ];
+      map.forEach(([header, key]) => {
+        let val = key ? (row[key] || '') : '';
+        if (header === "Service") val = (val+'').replace(/®/g,'');
+        const td = document.createElement('td'); td.textContent = val; tr.appendChild(td);
+      });
+      return tr;
+    }
+
     function buildSalesOrderLines(baseRow){
       const lines = [];
       const cfParts = [baseRow["Custom Field 1"], baseRow["Custom Field 2"]].map(v => (v || '').toString().trim()).filter(v => v.length > 0).sort((a,b) => a.localeCompare(b, undefined, {numeric:true, sensitivity:'base'}));
-      const common = {"Order Date": baseRow["Order Date"], "Ship From": baseRow["Ship From"], "Order Number": baseRow["Order Number"], "Item SKU": baseRow["Item SKU"], "Quantity": baseRow["Quantity"] || 1, "Order Total": baseRow["Order Total"], "Recipient": baseRow["Recipient"], "PO Number": baseRow["PO Number"]};
-      cfParts.forEach(val => { lines.push({...common, "Custom Field 1": val, "Custom Field 2": "", "Custom Field 3": "", "Rate": "", "Service": "", "Tracking Number": ""}); });
-      lines.push({...common, "Custom Field 1": "Shipping (WD)", "Custom Field 2": "", "Custom Field 3": "", "Rate": baseRow["Rate"] || "", "Service": (baseRow["Service"] || "").replace(/®/g,''), "Tracking Number": baseRow["Tracking Number"] || ""});
+      const common = {"Order Date": baseRow["Order Date"], "Ship From": baseRow["Ship From"], "Order Number": baseRow["Order Number"], "Item SKU": baseRow["Item SKU"], "Quantity": baseRow["Quantity"] || 1, "Order Total": baseRow["Order Total"], "Recipient": baseRow["Recipient"], "PO Number": baseRow["PO Number"], "Rate": baseRow["Rate"] || "", "Service": (baseRow["Service"] || "").replace(/®/g,''), "Tracking Number": baseRow["Tracking Number"] || ""};
+      cfParts.forEach(val => { lines.push({...common, "Custom Field 1": val, "Custom Field 2": "", "Custom Field 3": "", "Rate":"", "Service":"", "Tracking Number":""}); });
+      lines.push({...common, "Custom Field 1":"Shipping (WD)", "Custom Field 2":"", "Custom Field 3":"", "Rate": baseRow["Rate"] || "", "Service": (baseRow["Service"] || "").replace(/®/g,''), "Tracking Number": baseRow["Tracking Number"] || ""});
       return lines;
     }
+
     function renderSalesOrder(){
       const tbody = document.getElementById('orderTable').querySelector('tbody');
       tbody.innerHTML = '';
@@ -291,16 +310,35 @@
       const counts = {}; exploded.forEach(r => { counts[r["Order Date"]] = (counts[r["Order Date"]] || 0) + 1; });
       const parts = Object.entries(counts).map(([d,c]) => `${d}: ${c}`);
       document.getElementById('ordersByDate').textContent = `Lines by Date: ${parts.join('    |    ')}`;
-      exploded.forEach(row => tbody.appendChild(buildRowTr(row)));
+      exploded.forEach(row => tbody.appendChild(buildOrderRowTr(row)));
     }
+
     function exportCurrent(){
       let fn = document.getElementById('exportFilename').value.trim() || (currentView==='order' ? 'Sales_Order' : 'Sales_Report');
       fn = fn.replace(/\.xlsx$/i,'');
       let headers, data;
+
       if(currentView==='order'){
         const exploded = masterDataRows.flatMap(r => buildSalesOrderLines(r));
-        headers = ["Order Date","Ship From","Order Number","Item SKU","Quantity","Custom Field 1","Custom Field 2","Custom Field 3","Order Total","Recipient","Rate","Service","Tracking Number","PO Number"];
-        data = exploded.map(r => { const obj = {}; headers.forEach(h => obj[h] = r[h] || ''); return obj; });
+        // Export with new column headers & mapping
+        headers = ["Order Date","Ship From","Order Number","Item SKU","Quantity","Custom Field 1","Custom Field 2","Custom Field 3","Order Total","Recipient","Carrier Fee","Service","Tracking Number","PO Reference Number","Memo"];
+        data = exploded.map(r => ({
+          "Order Date": r["Order Date"] || "",
+          "Ship From": r["Ship From"] || "",
+          "Order Number": r["Order Number"] || "",
+          "Item SKU": r["Item SKU"] || "",
+          "Quantity": r["Quantity"] || "",
+          "Custom Field 1": r["Custom Field 1"] || "",
+          "Custom Field 2": r["Custom Field 2"] || "",
+          "Custom Field 3": r["Custom Field 3"] || "",
+          "Order Total": r["Order Total"] || "",
+          "Recipient": r["Recipient"] || "",
+          "Carrier Fee": r["Rate"] || "",                  // mapped from Rate
+          "Service": (r["Service"] || ""),
+          "Tracking Number": r["Tracking Number"] || "",
+          "PO Reference Number": r["PO Number"] || "",     // mapped from PO Number
+          "Memo": ""                                       // new empty column
+        }));
       } else {
         const tbl = document.getElementById('reportTable');
         headers = Array.from(tbl.querySelectorAll('thead th')).map(th => th.textContent.trim());
@@ -308,11 +346,13 @@
           Array.from(tr.querySelectorAll('td')).map(td => td.textContent)
         ).map(r => Object.fromEntries(r.map((c,i) => [headers[i], c])));
       }
-      const ws = XLSX.utils.json_to_sheet(data);
+
+      const ws = XLSX.utils.json_to_sheet(data, {header: headers});
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, currentView==='order' ? 'Sales Order' : 'Sales Report');
       XLSX.writeFile(wb, fn + '.xlsx');
     }
+
     function resetAll() {
       masterDataRows = []; masterOrderNumbers.clear(); isFirstFile = true; updateFilesCount = 0;
       document.getElementById('fileInput').value = '';
