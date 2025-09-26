@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WooParts & AutoApex — Sales Report/Order Generator</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <style>
+    :root{
+      --bg: #f6f8fb; --panel:#fff; --panel-2:#fcfdff; --text:#0f172a; --muted:#445268;
+      --brand:#2563eb; --brand-2:#06b6d4; --border:#dbe2ea; --ring: rgba(37,99,235,.25);
+      --chip-bg:#f8fafc; --chip-border:#e2e8f0; --input-bg:#fff; --input-border:#cbd5e1; --input-text:#0f172a;
+      --table-alt:#f1f5f9; --table-hover:#eef6ff; --button-text:#fff;
+    }
+    :root[data-theme="dark"]{
+      --bg:#0b1220; --panel:#0f172a; --panel-2:#0b1224; --text:#e6edf3; --muted:#9fb1c7;
+      --brand:#60a5fa; --brand-2:#22d3ee; --border:#1f2a3a; --ring:rgba(110,231,255,.35);
+      --chip-bg:#0f172a; --chip-border:#1f2a3a; --input-bg:#0b1220; --input-border:#233048; --input-text:#e6edf3;
+      --table-alt: rgba(255,255,255,.02); --table-hover: rgba(96,165,250,.07); --button-text:#0b1220;
+    }
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui; padding:14px}
+    .shell{width:100%}
+    .header,.controls{background:linear-gradient(180deg,var(--panel),var(--panel-2)); border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:12px}
+    .controls{position:sticky;top:8px;z-index:10}
+    h1{margin:0;font-size:20px}
+    .left-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .right-tools{display:flex;gap:8px;align-items:center;justify-content:flex-end}
+    input[type="file"],input[type="text"]{padding:8px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--input-text);border-radius:10px;min-width:240px}
+    button{padding:9px 12px;border:0;border-radius:10px;background:linear-gradient(180deg, var(--brand), var(--brand-2));color:var(--button-text);font-weight:600;cursor:pointer}
+    .pill{padding:6px 10px;border:1px solid var(--input-border);border-radius:999px;background:var(--input-bg);color:#445268;font-size:12px;cursor:pointer}
+    .pill.active{outline:3px solid var(--ring)}
+    #meta{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px}
+    .chip{font-size:12px;border:1px solid var(--chip-border);background:var(--chip-bg);border-radius:999px;padding:6px 10px;color:#475569}
+
+    /* Scroll containers so THEAD sticks to top of table, not the page */
+    .table-wrap{
+      width:100%;
+      height: 72vh;           /* visible window for the table */
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: linear-gradient(180deg,var(--panel),var(--panel-2));
+      box-shadow: 0 6px 18px rgba(0,0,0,.12);
+    }
+    table{width:100%; border-collapse:separate; border-spacing:0}
+    thead th{
+      position: sticky;
+      top: 0;                 /* <-- key change */
+      z-index: 5;
+      background: var(--panel);
+      color: var(--text);
+      text-align:left; padding:10px 12px; font-weight:600; font-size:12px; letter-spacing:.2px; border-bottom:1px solid var(--border); white-space:nowrap;
+    }
+    tbody td{padding:9px 12px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text)}
+    tbody tr:nth-child(odd) td{background:var(--table-alt)}
+    tbody tr:hover td{background:var(--table-hover)}
+    .hidden{display:none}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="header" style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center">
+      <h1>WooParts &amp; AutoApex — Sales Report/Order Generator</h1>
+      <div class="right-tools">Theme <button id="themeToggle">Toggle</button></div>
+    </div>
+
+    <div class="controls" style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center">
+      <div class="left-controls">
+        <input type="file" id="fileInput" multiple accept=".xlsx, .xls, .csv" />
+        <button class="secondary" onclick="resetAll()">Reset</button>
+        <div class="view-toggle" style="display:flex;gap:6px">
+          <span id="pillReport" class="pill active" onclick="switchView('report')">Sales Report</span>
+          <span id="pillOrder" class="pill" onclick="switchView('order')">Sales Order</span>
+        </div>
+      </div>
+      <div class="right-tools">
+        <label for="exportFilename">Export as</label>
+        <input type="text" id="exportFilename" placeholder="File name" value="Sales_Report" />
+        <button onclick="exportCurrent()">Export Current View</button>
+      </div>
+    </div>
+
+    <div id="meta">
+      <div id="totalOrders" class="chip">Total Orders: 0</div>
+      <div id="ordersByDate" class="chip">Orders by Date:</div>
+    </div>
+
+    <!-- Tables in independent scroll containers -->
+    <div class="table-wrap" id="reportWrap">
+      <table id="reportTable">
+        <thead>
+          <tr>
+            <th>Order Date</th><th>Ship From</th><th>Order Number</th><th>Item SKU</th><th>Quantity</th>
+            <th>Custom Field 1</th><th>Custom Field 2</th><th>Custom Field 3</th><th>Order Total</th>
+            <th>Recipient</th><th>Rate</th><th>Service</th><th>Tracking Number</th><th>PO Number</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div style="height:10px"></div>
+
+    <div class="table-wrap hidden" id="orderWrap">
+      <table id="orderTable">
+        <thead>
+          <tr>
+            <th>Order Date</th><th>Ship From</th><th>Order Number</th><th>Item SKU</th><th>Quantity</th>
+            <th>Custom Field 1</th><th>Custom Field 2</th><th>Custom Field 3</th><th>Order Total</th>
+            <th>Recipient</th><th>Rate</th><th>Service</th><th>Tracking Number</th><th>PO Number</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // theme toggle
+    const htmlEl = document.documentElement;
+    const savedTheme = localStorage.getItem('kp360_theme_v1');
+    if(savedTheme){ htmlEl.setAttribute('data-theme', savedTheme); }
+    document.getElementById('themeToggle').addEventListener('click', () => {
+      const next = htmlEl.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      htmlEl.setAttribute('data-theme', next);
+      localStorage.setItem('kp360_theme_v1', next);
+    });
+
+    // === Original app JS (unchanged) ===
+    let masterDataRows = [];
+    let masterOrderNumbers = new Set();
+    let isFirstFile = true;
+    let updateFilesCount = 0;
+    let currentView = 'report'; // 'report' | 'order'
+    document.getElementById('fileInput').addEventListener('change', handleFiles);
+
+    function switchView(view){
+      currentView = view;
+      document.getElementById('pillReport').classList.toggle('active', view==='report');
+      document.getElementById('pillOrder').classList.toggle('active', view==='order');
+      document.getElementById('reportWrap').classList.toggle('hidden', view!=='report');
+      document.getElementById('orderWrap').classList.toggle('hidden', view!=='order');
+      document.getElementById('reportTable').classList.toggle('hidden', view!=='report');
+      document.getElementById('orderTable').classList.toggle('hidden', view!=='order');
+      if(view==='order'){
+        document.getElementById('exportFilename').value = 'Sales_Order';
+        renderSalesOrder();
+      } else {
+        document.getElementById('exportFilename').value = 'Sales_Report';
+        renderReport();
+      }
+    }
+
+    function skuHasFBA(sku) { return ((sku || '') + '').toUpperCase().includes('FBA'); }
+    function containsCodeAlphaBoundary(str, token) {
+      const s = (str || '').toUpperCase();
+      const t = token.toUpperCase().replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
+      const re = new RegExp(`(^|[^A-Z])${t}([^A-Z]|$)`);
+      return re.test(s);
+    }
+    function computeShipFrom(row) {
+      const po = ((row["PO Number"] || '') + '').toUpperCase();
+      const skuRaw = row["Item SKU"] != null ? row["Item SKU"] : row["SKU"];
+      const sku = ((skuRaw || '') + '').toUpperCase();
+      if (po) {
+        if (po.includes('CALIFORNIA') || containsCodeAlphaBoundary(po, 'CALI') || containsCodeAlphaBoundary(po, 'CA')) return 'California Distribution Warehouse';
+        if (po.includes('GEORGIA') || containsCodeAlphaBoundary(po, 'GA')) return 'Georgia Distribution Warehouse';
+        if (containsCodeAlphaBoundary(po, 'NJ')) return 'New Jersey Distribution Warehouse';
+        if (containsCodeAlphaBoundary(po, 'IL')) return 'Chicago Distribution Warehouse';
+      }
+      if (sku.includes('FBA')) return 'FBA Warehouse';
+      if (sku.includes('USA')) return 'Usauto Dropship';
+      if (sku.includes('MLX')) return 'Meyer Dropship';
+      return '';
+    }
+    function formatDate(dateValue) {
+      if (typeof dateValue === 'number') {
+        const d = XLSX.SSF.parse_date_code(dateValue);
+        if (d) return `${d.m}/${d.d}/${d.y}`;
+      }
+      const dt = new Date(dateValue); if (isNaN(dt)) return dateValue;
+      return `${dt.getMonth()+1}/${dt.getDate()}/${dt.getFullYear()}`;
+    }
+    function handleFiles(event) {
+      const files = Array.from(event.target.files);
+      files.forEach((file, fileIdx) => {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          let json = [];
+          if (file.name.endsWith('.csv')) { const wb = XLSX.read(e.target.result, {type:'string'}); json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]); }
+          else { const wb = XLSX.read(e.target.result, {type:'binary'}); json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]); }
+          if (isFirstFile) {
+            masterDataRows = []; masterOrderNumbers.clear();
+            json.forEach(row => {
+              const ord = row["Order Number"]||row["Site Order ID"]||row["Order #"]; if (!ord) return;
+              const rec = (row["Recipient"]||`${row["Shipping First Name"]||''} ${row["Shipping Last Name"]||''}`).trim();
+              const itemSku = row["Item SKU"]||row["SKU"]||'';
+              const computedShipFrom = computeShipFrom(row);
+              let cf1 = row["Custom Field 1"]||''; if (skuHasFBA(itemSku)) cf1 = itemSku;
+              masterDataRows.push({
+                "Order Date": formatDate(row["Order Date"]||''),
+                "Ship From": computedShipFrom,
+                "Order Number": ord,
+                "Item SKU": itemSku,
+                "Quantity": row["Quantity"]||'',
+                "Custom Field 1": cf1,
+                "Custom Field 2": row["Custom Field 2"]||'',
+                "Custom Field 3": row["Custom Field 3"]||'',
+                "Order Total": row["Order Total"]||'',
+                "Recipient": rec,
+                "Rate": row["Rate"]||'',
+                "Service": (row["Service"]||'').replace(/®/g,''),
+                "Tracking Number": row["Tracking Number"]||'',
+                "PO Number": row["PO Number"]||''
+              });
+              masterOrderNumbers.add(ord);
+            });
+            isFirstFile = false;
+          } else {
+            const updates = new Map();
+            json.forEach(r => {
+              const ord = r["Order Number"]||r["Site Order ID"]||r["Order #"];
+              if (!ord || !masterOrderNumbers.has(ord)) return;
+              if (!updates.has(ord)) updates.set(ord, []);
+              updates.get(ord).push(r);
+            });
+            updates.forEach((rows, ord) => {
+              let idx = 0;
+              for (let i = 0; i < masterDataRows.length && idx < rows.length; i++) {
+                if (masterDataRows[i]["Order Number"] === ord) {
+                  const u = rows[idx++];
+                  for (const k in u) {
+                    if ((!masterDataRows[i][k] || masterDataRows[i][k] === '') && u[k] !== undefined && u[k] !== '') {
+                      masterDataRows[i][k] = u[k];
+                    }
+                  }
+                }
+              }
+            });
+            masterDataRows = masterDataRows.map(r => {
+              const updated = { ...r, "Ship From": computeShipFrom(r) };
+              if (skuHasFBA(r["Item SKU"])) updated["Custom Field 1"] = r["Item SKU"];
+              return updated;
+            });
+            updateFilesCount++;
+          }
+          if(currentView==='order') renderSalesOrder();
+          else renderReport();
+        };
+        if (file.name.endsWith('.csv')) reader.readAsText(file);
+        else reader.readAsBinaryString(file);
+      });
+    }
+    function renderReport(filteredData = null) {
+      const tbody = document.getElementById('reportTable').querySelector('tbody');
+      tbody.innerHTML = '';
+      const rows = filteredData || masterDataRows;
+      document.getElementById('totalOrders').textContent = `Total Orders: ${rows.length}`;
+      const counts = {};
+      rows.forEach(r => { counts[r["Order Date"]] = (counts[r["Order Date"]] || 0) + 1; });
+      const parts = Object.entries(counts).map(([d,c]) => `${d}: ${c}`);
+      document.getElementById('ordersByDate').textContent = `Orders by Date: ${parts.join('    |    ')}`;
+      rows.forEach(row => tbody.appendChild(buildRowTr(row)));
+    }
+    function buildRowTr(row){
+      const tr = document.createElement('tr');
+      const keys = ["Order Date","Ship From","Order Number","Item SKU","Quantity","Custom Field 1","Custom Field 2","Custom Field 3","Order Total","Recipient","Rate","Service","Tracking Number","PO Number"];
+      keys.forEach(key => {
+        let val = row[key] || '';
+        if (key === "Service") val = (val+'').replace(/®/g,'');
+        const td = document.createElement('td');
+        td.textContent = val;
+        tr.appendChild(td);
+      });
+      return tr;
+    }
+    function buildSalesOrderLines(baseRow){
+      const lines = [];
+      const cfParts = [baseRow["Custom Field 1"], baseRow["Custom Field 2"]].map(v => (v || '').toString().trim()).filter(v => v.length > 0).sort((a,b) => a.localeCompare(b, undefined, {numeric:true, sensitivity:'base'}));
+      const common = {"Order Date": baseRow["Order Date"], "Ship From": baseRow["Ship From"], "Order Number": baseRow["Order Number"], "Item SKU": baseRow["Item SKU"], "Quantity": baseRow["Quantity"] || 1, "Order Total": baseRow["Order Total"], "Recipient": baseRow["Recipient"], "PO Number": baseRow["PO Number"]};
+      cfParts.forEach(val => { lines.push({...common, "Custom Field 1": val, "Custom Field 2": "", "Custom Field 3": "", "Rate": "", "Service": "", "Tracking Number": ""}); });
+      lines.push({...common, "Custom Field 1": "Shipping (WD)", "Custom Field 2": "", "Custom Field 3": "", "Rate": baseRow["Rate"] || "", "Service": (baseRow["Service"] || "").replace(/®/g,''), "Tracking Number": baseRow["Tracking Number"] || ""});
+      return lines;
+    }
+    function renderSalesOrder(){
+      const tbody = document.getElementById('orderTable').querySelector('tbody');
+      tbody.innerHTML = '';
+      const exploded = masterDataRows.flatMap(r => buildSalesOrderLines(r));
+      document.getElementById('totalOrders').textContent = `Total Orders (lines): ${exploded.length}`;
+      const counts = {}; exploded.forEach(r => { counts[r["Order Date"]] = (counts[r["Order Date"]] || 0) + 1; });
+      const parts = Object.entries(counts).map(([d,c]) => `${d}: ${c}`);
+      document.getElementById('ordersByDate').textContent = `Lines by Date: ${parts.join('    |    ')}`;
+      exploded.forEach(row => tbody.appendChild(buildRowTr(row)));
+    }
+    function exportCurrent(){
+      let fn = document.getElementById('exportFilename').value.trim() || (currentView==='order' ? 'Sales_Order' : 'Sales_Report');
+      fn = fn.replace(/\.xlsx$/i,'');
+      let headers, data;
+      if(currentView==='order'){
+        const exploded = masterDataRows.flatMap(r => buildSalesOrderLines(r));
+        headers = ["Order Date","Ship From","Order Number","Item SKU","Quantity","Custom Field 1","Custom Field 2","Custom Field 3","Order Total","Recipient","Rate","Service","Tracking Number","PO Number"];
+        data = exploded.map(r => { const obj = {}; headers.forEach(h => obj[h] = r[h] || ''); return obj; });
+      } else {
+        const tbl = document.getElementById('reportTable');
+        headers = Array.from(tbl.querySelectorAll('thead th')).map(th => th.textContent.trim());
+        data = Array.from(tbl.querySelectorAll('tbody tr')).map(tr =>
+          Array.from(tr.querySelectorAll('td')).map(td => td.textContent)
+        ).map(r => Object.fromEntries(r.map((c,i) => [headers[i], c])));
+      }
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, currentView==='order' ? 'Sales Order' : 'Sales Report');
+      XLSX.writeFile(wb, fn + '.xlsx');
+    }
+    function resetAll() {
+      masterDataRows = []; masterOrderNumbers.clear(); isFirstFile = true; updateFilesCount = 0;
+      document.getElementById('fileInput').value = '';
+      document.getElementById('totalOrders').textContent = 'Total Orders: 0';
+      document.getElementById('ordersByDate').textContent = currentView==='order' ? 'Lines by Date:' : 'Orders by Date:';
+      document.querySelector('#reportTable tbody').innerHTML = '';
+      document.querySelector('#orderTable tbody').innerHTML = '';
+      switchView('report');
+    }
+  </script>
+</body>
+</html>
