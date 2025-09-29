@@ -26,22 +26,16 @@
     .chip.ok{border-color:#16a34a;color:#166534;background:#ecfdf5}
     .chip.warn{border-color:#f59e0b;color:#92400e;background:#fffbeb}
     .chip.err{border-color:#ef4444;color:#991b1b;background:#fef2f2}
-    .table-wrap{ width:100%; height:85vh; overflow:auto;border:1px solid var(--border); border-radius:12px;background:linear-gradient(180deg,var(--panel),var(--panel-2)); box-shadow:0 6px 18px rgba(0,0,0,.12); }
+    .table-wrap{ width:100%; height:72vh; overflow:auto;border:1px solid var(--border); border-radius:12px;background:linear-gradient(180deg,var(--panel),var(--panel-2)); box-shadow:0 6px 18px rgba(0,0,0,.12); }
     table{width:100%; border-collapse:separate; border-spacing:0}
-    thead th{ position:sticky; top:0; z-index:5; background:var(--panel); color:var(--text);text-align:left; padding:10px 12px; font-weight:600; font-size:12px; letter-spacing:.2px; border-bottom:1px solid var(--border); white-space:nowrap; }
+    thead th{ position:sticky; top:0; z-index:5; background:var(--panel); color:var(--text);
+      text-align:left; padding:10px 12px; font-weight:600; font-size:12px; letter-spacing:.2px; border-bottom:1px solid var(--border); white-space:nowrap; }
     tbody td{ padding:9px 12px; border-bottom:1px solid var(--border); font-size:13px; color:var(--text) }
     tbody tr:nth-child(odd) td{ background:var(--table-alt) }
     tbody tr:hover td{ background:var(--table-hover) }
-    .po-edit,.cf-edit{width: 220px; max-width: 100%; padding: 6px 8px;border:1px solid var(--input-border); border-radius:8px; background:var(--input-bg); color:var(--input-text);}
+    .po-edit,.cf-edit{width: var(--cell-input-width) !important; max-width: var(--cell-input-width) !important; padding: 5px 6px; border:1px solid var(--input-border); border-radius:8px; background:var(--input-bg); color:var(--input-text); font-size:12px;}
     .hidden{display:none}
     .author {margin: 4px 0 0 0;font-size: 13px;color: var(--muted);font-style: italic;}
-    <style>
-  /* Compact, fixed input widths so the table fits without scrolling */
-  :root { --cell-input-width: 150px; } /* try 120–150px to taste */
-
-  .po-edit, .cf-edit{width: var(--cell-input-width) !important;max-width: var(--cell-input-width) !important;padding: 5px 6px;font-size: 12px;}
-</style>
-
   </style>
 
 <style id="kp360-empty-highlights">
@@ -221,7 +215,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       if (sku.includes('OLX')) return 'Tonsa Dropship';
       return '';
     }
-    function shipFromIsVendor(s){ s=(s||'').toUpperCase(); return /\bUSAUTO\b/.test(s)||/\bUS AUTO\b/.test(s)||/\bMEYER\b/.test(s)||/\bTONSA\b/.test(s); }
+    function shipFromIsVendor(s){s=(s||'').toUpperCase();return /\bUSAUTO\b|\bUS AUTO\b|\bMEYER\b|\bTONSA\b|\bFBA WAREHOUSE\b/.test(s);}
     function formatDate(dateValue) {
       if (typeof dateValue === 'number') {
         const d = XLSX.SSF.parse_date_code(dateValue);
@@ -529,7 +523,8 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
         row["Ship From"] = computeShipFrom(row);
 
         // Required fields
-        if (!row["PO Number"] || String(row["PO Number"]).trim()===''){
+        const isVendor = shipFromIsVendor(row["Ship From"]);
+        if (!isVendor && (!row["PO Number"] || String(row["PO Number"]).trim()==='')){
           issues.push(`Order ${ord}: PO Number is empty.`);
         }
         if (!row["Custom Field 1"] || String(row["Custom Field 1"]).trim()===''){
@@ -705,7 +700,8 @@ td.kp-hl-red input, td.kp-hl-yellow input { background-color: inherit !important
         if (idx.SHIP_FROM != null && isEmpty(val.shipFrom)) getCell(tr, idx.SHIP_FROM)?.classList.add('kp-hl-red');
         if (idx.CF1 != null && isEmpty(val.cf1)) getCell(tr, idx.CF1)?.classList.add('kp-hl-red');
         if (idx.ITEM_SKU != null && idx.CF2 != null && hasSkuPLXorPAIR(val.itemSku) && isEmpty(val.cf2)) getCell(tr, idx.CF2)?.classList.add('kp-hl-red');
-        if (idx.PO_NUM != null && isEmpty(val.po)) getCell(tr, idx.PO_NUM)?.classList.add('kp-hl-red');
+        const isVendorPO = /\bUSAUTO\b|\bUS AUTO\b|\bMEYER\b|\bTONSA\b/i.test(val.shipFrom || '');
+        if (idx.PO_NUM != null && !isVendorPO && isEmpty(val.po)) getCell(tr, idx.PO_NUM)?.classList.add('kp-hl-red');
 
         let allowYellow = true;
         const cf1Upper = norm(val.cf1);
