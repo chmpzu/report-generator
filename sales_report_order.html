@@ -18,10 +18,14 @@
     .right-tools{display:flex;gap:8px;align-items:center;justify-content:flex-end}
     input[type="file"],.top-input{padding:8px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--input-text);border-radius:10px;min-width:240px}
     button{padding:9px 12px;border:0;border-radius:10px;background:linear-gradient(180deg, var(--brand), var(--brand-2));color:var(--button-text);font-weight:600;cursor:pointer}
+    button[disabled]{opacity:.55; cursor:not-allowed;}
     .pill{padding:6px 10px;border:1px solid var(--input-border);border-radius:999px;background:var(--input-bg);color:#445268;font-size:12px;cursor:pointer}
     .pill.active{outline:3px solid var(--ring)}
     #meta{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px}
     .chip{font-size:12px;border:1px solid var(--chip-border);background:var(--chip-bg);border-radius:999px;padding:6px 10px;color:#475569}
+    .chip.ok{border-color:#16a34a;color:#166534;background:#ecfdf5}
+    .chip.warn{border-color:#f59e0b;color:#92400e;background:#fffbeb}
+    .chip.err{border-color:#ef4444;color:#991b1b;background:#fef2f2}
     .table-wrap{ width:100%; height:72vh; overflow:auto;border:1px solid var(--border); border-radius:12px;background:linear-gradient(180deg,var(--panel),var(--panel-2)); box-shadow:0 6px 18px rgba(0,0,0,.12); }
     table{width:100%; border-collapse:separate; border-spacing:0}
     thead th{ position:sticky; top:0; z-index:5; background:var(--panel); color:var(--text);
@@ -76,16 +80,18 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
           <span id="pillOrder" class="pill" onclick="switchView('order')">Sales Order</span>
         </div>
       </div>
-      <div class="right-tools">
+      <div class="right-tools" style="display:flex;gap:8px;align-items:center">
         <label for="exportFilename">Export as</label>
         <input type="text" id="exportFilename" class="top-input" placeholder="File name" value="Sales_Report" />
-        <button onclick="exportCurrent()">Export Current View</button>
+        <button id="verifyBtn" class="secondary hidden" title="Verify Sales Order table before export">Verify table</button>
+        <button id="exportBtn" onclick="exportCurrent()" disabled>Export Current View</button>
       </div>
     </div>
 
     <div id="meta">
       <div id="totalOrders" class="chip">Total Orders: 0</div>
       <div id="ordersByDate" class="chip">Orders by Date:</div>
+      <div id="verifyStatus" class="chip hidden"></div>
     </div>
 
     <div class="table-wrap" id="reportWrap">
@@ -104,7 +110,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
     <div style="height:10px"></div>
 
     <div class="table-wrap hidden" id="orderWrap">
-      <table id="orderTable">
+      <table id="orderTable" data-view="order">
         <thead>
           <tr>
             <th>Order Date</th><th>Ship From</th><th>Order Number</th><th>Item SKU</th><th>Quantity</th>
@@ -128,13 +134,37 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       localStorage.setItem('kp360_theme_v1', next);
     });
 
-    // === Original app JS with PO & CF edits wired to the data model ===
+    // === App State ===
     let masterDataRows = [];
     let masterOrderNumbers = new Set();
     let isFirstFile = true;
     let updateFilesCount = 0;
     let currentView = 'report'; // 'report' | 'order'
-    document.getElementById('fileInput').addEventListener('change', handleFiles);
+    let soVerified = false;     // require verification before exporting Sales Order
+
+    const exportBtn = document.getElementById('exportBtn');
+    const verifyBtn = document.getElementById('verifyBtn');
+    const verifyStatus = document.getElementById('verifyStatus');
+
+    function setVerifyStatus(kind, text){
+      verifyStatus.classList.remove('hidden','ok','warn','err');
+      verifyStatus.textContent = text;
+      verifyStatus.classList.add(kind);
+    }
+    function clearVerifyStatus(){
+      verifyStatus.classList.add('hidden');
+      verifyStatus.classList.remove('ok','warn','err');
+      verifyStatus.textContent = '';
+    }
+    function markDirty(){
+      if (currentView === 'order'){
+        soVerified = false;
+        exportBtn.disabled = true;
+        clearVerifyStatus();
+      }
+    }
+
+    document.getElementById('fileInput').addEventListener('change', (e)=>{ handleFiles(e); markDirty(); });
 
     function switchView(view){
       currentView = view;
@@ -144,15 +174,24 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       document.getElementById('orderWrap').classList.toggle('hidden', view!=='order');
       document.getElementById('reportTable').classList.toggle('hidden', view!=='report');
       document.getElementById('orderTable').classList.toggle('hidden', view!=='order');
+
+      // Export filename & button lock/verify visibility
       if(view==='order'){
         document.getElementById('exportFilename').value = 'Sales_Order';
+        verifyBtn.classList.remove('hidden');
+        exportBtn.disabled = !soVerified;  // lock until verified
+        clearVerifyStatus();
         renderSalesOrder();
       } else {
         document.getElementById('exportFilename').value = 'Sales_Report';
+        verifyBtn.classList.add('hidden');
+        exportBtn.disabled = false;        // allow exporting report anytime
+        clearVerifyStatus();
         renderReport();
       }
     }
 
+    // simple helpers
     function skuHasFBA(sku) { return ((sku || '') + '').toUpperCase().includes('FBA'); }
     function containsCodeAlphaBoundary(str, token) {
       const s = (str || '').toUpperCase();
@@ -176,6 +215,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       if (sku.includes('OLX')) return 'Tonsa Dropship';
       return '';
     }
+    function shipFromIsVendor(s){ s=(s||'').toUpperCase(); return /\bUSAUTO\b/.test(s)||/\bUS AUTO\b/.test(s)||/\bMEYER\b/.test(s)||/\bTONSA\b/.test(s); }
     function formatDate(dateValue) {
       if (typeof dateValue === 'number') {
         const d = XLSX.SSF.parse_date_code(dateValue);
@@ -184,9 +224,11 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       const dt = new Date(dateValue); if (isNaN(dt)) return dateValue;
       return `${dt.getMonth()+1}/${dt.getDate()}/${dt.getFullYear()}`;
     }
+
+    // File load
     function handleFiles(event) {
       const files = Array.from(event.target.files);
-      files.forEach((file, fileIdx) => {
+      files.forEach((file) => {
         const reader = new FileReader();
         reader.onload = function(e) {
           let json = [];
@@ -206,7 +248,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
                 "Order Number": ord,
                 "Item SKU": itemSku,
                 "Quantity": row["Quantity"]||'',
-                "Custom Field 1": row["Custom Field 1"]||'',
+                "Custom Field 1": cf1,
                 "Custom Field 2": row["Custom Field 2"]||'',
                 "Custom Field 3": row["Custom Field 3"]||'',
                 "Order Total": row["Order Total"]||'',
@@ -269,7 +311,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       rows.forEach((row, idx) => tbody.appendChild(buildReportRowTr(row, idx)));
     }
 
-    // Build Report Row (PO Number + CFs + Rate/Service/Tracking editable)
+    // Build Report Row (editable: PO + CFs + Rate/Service/Tracking)
     function buildReportRowTr(row, idx){
       const tr = document.createElement('tr');
       const keys = ["Order Date","Ship From","Order Number","Item SKU","Quantity","Custom Field 1","Custom Field 2","Custom Field 3","Order Total","Recipient","Rate","Service","Tracking Number","PO Number"];
@@ -285,11 +327,10 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
           input.addEventListener('change', (e) => {
             const newPO = e.target.value;
             masterDataRows[idx]["PO Number"] = newPO;
-            // Recompute Ship From for this row
             masterDataRows[idx]["Ship From"] = computeShipFrom(masterDataRows[idx]);
-            // Update UI cells for Ship From
-            const shipFromCell = tr.children[1]; // index 1 is "Ship From"
+            const shipFromCell = tr.children[1];
             if (shipFromCell) shipFromCell.textContent = masterDataRows[idx]["Ship From"] || '';
+            markDirty();
           });
           td.appendChild(input);
         } else if (key === "Custom Field 1" || key === "Custom Field 2" || key === "Custom Field 3"
@@ -302,19 +343,23 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
           input.addEventListener('change', (e) => {
             const val = key === "Service" ? e.target.value.replace(/®/g,'') : e.target.value;
             masterDataRows[idx][key] = val || '';
+            // If Item SKU has FBA, keep CF1 synced to SKU as per rule
+            if (key === "Custom Field 1" && skuHasFBA(masterDataRows[idx]["Item SKU"])) {
+              masterDataRows[idx]["Custom Field 1"] = masterDataRows[idx]["Item SKU"];
+              e.target.value = masterDataRows[idx]["Custom Field 1"];
+            }
+            markDirty();
           });
           td.appendChild(input);
-        } else if (key === "Service") {
-          td.textContent = (row[key] || '').toString().replace(/®/g,'');
         } else {
-          td.textContent = row[key] || '';
+          td.textContent = key === "Service" ? (row[key] || '').toString().replace(/®/g,'') : (row[key] || '');
         }
         tr.appendChild(td);
       });
       return tr;
     }
 
-    // Sales Order row builder with new headers/mapping (data unchanged)
+    // Sales Order row builder (read-only view of computed lines)
     function buildOrderRowTr(row){
       const tr = document.createElement('tr');
       const map = [
@@ -342,15 +387,13 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       return tr;
     }
 
-    // === New helpers for SKU-based CF transformations (LKQ + Tonsa rules) ===
+    // === SKU-based CF transformations (LKQ + Tonsa) ===
     function isPartslinkId(s){
       const clean = String(s||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
-      // Common Partslink pattern: 2 letters + 7 digits (e.g., TO2503197)
       return /^[A-Z]{2}\d{7}$/.test(clean);
     }
     function transformCFPartsByVendor(itemSku, parts){
       const sku = String(itemSku||'').toUpperCase();
-      // LKQ: Item SKU starts with LLX -> if CF value is a Partslink number, prefix with LKQ-
       if (sku.startsWith('LLX')){
         return parts.map(p=>{
           const raw = String(p||'').trim();
@@ -358,12 +401,10 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
           return isPartslinkId(raw) ? ('LKQ-' + raw.replace(/^LKQ-?/i,'')) : raw;
         });
       }
-      // Tonsa: Item SKU starts with OLX -> remove MOP/ACD tokens then prefix TON-
       if (sku.startsWith('OLX')){
         return parts.map(p=>{
           let raw = String(p||'').trim();
           if (!raw) return raw;
-          // Remove MOP/ACD (with optional following hyphen)
           raw = raw.replace(/\b(?:MOP|ACD)-?/gi,'').replace(/^\s*-+/, '').trim();
           if (!raw) return raw;
           if (!/^TON-/i.test(raw)) raw = 'TON-' + raw;
@@ -373,7 +414,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       return parts;
     }
 
-    // === Helpers for MULTI-SHIP shipping line expansion ===
+    // === Multi-ship helpers ===
     function looksMultiShip(row){
       const cfs = [row["Custom Field 1"], row["Custom Field 2"], row["Custom Field 3"]]
         .map(v => String(v||'').toUpperCase());
@@ -388,23 +429,19 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
         .filter(s => s.length>0);
     }
 
+    // Build SO lines
     function buildSalesOrderLines(baseRow){
       const lines = [];
-      // Gather CFs
       const cfPartsRaw = [baseRow["Custom Field 1"], baseRow["Custom Field 2"]]
         .map(v => (v || '').toString().trim())
         .filter(v => v.length > 0);
 
-      // Apply vendor-specific rules, then sort
       const cfPartsProcessed = transformCFPartsByVendor(baseRow["Item SKU"], cfPartsRaw)
         .filter(v => v && v.length > 0)
         .sort((a,b) => a.localeCompare(b, undefined, {numeric:true, sensitivity:'base'}));
 
-      // NEW RULE: If CFs have exactly the same value, keep one line and bump Quantity
       const cfCounts = {};
-      for (const val of cfPartsProcessed) {
-        cfCounts[val] = (cfCounts[val] || 0) + 1;
-      }
+      for (const val of cfPartsProcessed) cfCounts[val] = (cfCounts[val] || 0) + 1;
       const cfUnique = Object.keys(cfCounts);
 
       const common = {
@@ -422,18 +459,19 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       };
       const baseQty = Number(common["Quantity"]) || 1;
 
-      // Item lines (dedup)
+      // Item lines (dedup & qty bump)
       cfUnique.forEach(val => {
         const qty = baseQty * (cfCounts[val] || 1);
         lines.push({...common, "Custom Field 1": val, "Custom Field 2": "", "Custom Field 3": "", "Quantity": qty, "Rate":"", "Service":"", "Tracking Number":""});
       });
 
-      // === MULTI-SHIP: explode Shipping (WD) into multiple lines when CFs contain MULTISHIPMENT or (FULFILLED IN ...)
+      // Shipping lines (single or multi)
       const multiShip = looksMultiShip(baseRow);
       if (multiShip){
         const rates = splitCsv(baseRow["Rate"]);
         const services = splitCsv(baseRow["Service"]);
         const tracks = splitCsv(baseRow["Tracking Number"]);
+        const poList = splitCsv(baseRow["PO Number"]); // NEW: per-line PO support
         const n = Math.max(rates.length, services.length, tracks.length, 1);
         for (let i=0; i<n; i++){
           lines.push({
@@ -443,11 +481,11 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
             "Custom Field 3":"",
             "Rate": rates[i] ?? "",
             "Service": (services[i] ?? "").replace(/®/g,''),
-            "Tracking Number": tracks[i] ?? ""
+            "Tracking Number": tracks[i] ?? "",
+            "PO Number": poList[i] ?? baseRow["PO Number"] // assign PO per shipping line when provided
           });
         }
       } else {
-        // Single shipping line (default behavior)
         lines.push({
           ...common,
           "Custom Field 1":"Shipping (WD)",
@@ -455,7 +493,8 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
           "Custom Field 3":"",
           "Rate": baseRow["Rate"] || "",
           "Service": (baseRow["Service"] || "").replace(/®/g,''),
-          "Tracking Number": baseRow["Tracking Number"] || ""
+          "Tracking Number": baseRow["Tracking Number"] || "",
+          "PO Number": baseRow["PO Number"]
         });
       }
       return lines;
@@ -472,12 +511,76 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       exploded.forEach(row => tbody.appendChild(buildOrderRowTr(row)));
     }
 
+    // === Verification (Sales Order) ===
+    verifyBtn.addEventListener('click', verifySalesOrder);
+
+    function verifySalesOrder(){
+      // Run checks over source rows (not exploded) so the user can fix inputs easily
+      const issues = [];
+      masterDataRows.forEach((row, i) => {
+        const ord = row["Order Number"] || `#${i+1}`;
+        // Keep Ship From in sync for verification
+        row["Ship From"] = computeShipFrom(row);
+
+        // Required fields
+        if (!row["PO Number"] || String(row["PO Number"]).trim()===''){
+          issues.push(`Order ${ord}: PO Number is empty.`);
+        }
+        if (!row["Custom Field 1"] || String(row["Custom Field 1"]).trim()===''){
+          issues.push(`Order ${ord}: Custom Field 1 is empty.`);
+        }
+        if (!row["Ship From"] || String(row["Ship From"]).trim()===''){
+          issues.push(`Order ${ord}: Ship From is empty.`);
+        }
+
+        // Vendor + Carrier Fee + missing PO (unexpected fee scenario)
+        if (shipFromIsVendor(row["Ship From"]) && String(row["Rate"]||'').trim()!=='' && (!row["PO Number"] || String(row["PO Number"]).trim()==='')){
+          issues.push(`Order ${ord}: Carrier Fee present but Ship From is vendor and PO Number is empty.`);
+        }
+
+        // MULTI-SHIP consistency: counts should align (PO count is optional; if provided, we could check it too)
+        if (looksMultiShip(row)){
+          const rA = splitCsv(row["Rate"]);
+          const sA = splitCsv(row["Service"]);
+          const tA = splitCsv(row["Tracking Number"]);
+          const maxN = Math.max(rA.length, sA.length, tA.length);
+          if (maxN>0 && (rA.length!==sA.length || sA.length!==tA.length)){
+            issues.push(`Order ${ord}: MULTI-SHIP counts mismatch (Rate:${rA.length||0}, Service:${sA.length||0}, Tracking:${tA.length||0}).`);
+          }
+        }
+
+        // FBA rule sanity: if SKU has FBA, CF1 should equal Item SKU
+        if (skuHasFBA(row["Item SKU"]) && String(row["Custom Field 1"]).trim().toUpperCase() !== String(row["Item SKU"]).trim().toUpperCase()){
+          issues.push(`Order ${ord}: FBA SKU detected—Custom Field 1 should match Item SKU.`);
+        }
+      });
+
+      if (issues.length === 0){
+        soVerified = true;
+        exportBtn.disabled = false;
+        setVerifyStatus('ok', 'Sales Order verified ✓ You can export now.');
+      } else {
+        soVerified = false;
+        exportBtn.disabled = true;
+        setVerifyStatus('err', `Found ${issues.length} issue(s). Please fix and re-verify.`);
+        alert('Verification issues:\n- ' + issues.join('\n- '));
+      }
+
+      // re-render SO to ensure latest Ship From etc. reflected
+      if (currentView==='order') renderSalesOrder();
+    }
+
     function exportCurrent(){
       let fn = document.getElementById('exportFilename').value.trim() || (currentView==='order' ? 'Sales_Order' : 'Sales_Report');
       fn = fn.replace(/\.xlsx$/i,'');
       let headers, data;
 
       if(currentView==='order'){
+        // Safety: block export if not verified
+        if (!soVerified){
+          alert('Please verify the Sales Order table before exporting.');
+          return;
+        }
         const exploded = masterDataRows.flatMap(r => buildSalesOrderLines(r));
         headers = ["Order Date","Ship From","Order Number","Item SKU","Quantity","Custom Field 1","Custom Field 2","Custom Field 3","Order Total","Recipient","Carrier Fee","Service","Tracking Number","PO Reference Number","Memo"];
         data = exploded.map(r => ({
@@ -514,14 +617,23 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
 
     function resetAll() {
       masterDataRows = []; masterOrderNumbers.clear(); isFirstFile = true; updateFilesCount = 0;
+      soVerified = false; exportBtn.disabled = (currentView==='order');
       document.getElementById('fileInput').value = '';
       document.getElementById('totalOrders').textContent = 'Total Orders: 0';
       document.getElementById('ordersByDate').textContent = currentView==='order' ? 'Lines by Date:' : 'Orders by Date:';
       document.querySelector('#reportTable tbody').innerHTML = '';
       document.querySelector('#orderTable tbody').innerHTML = '';
+      clearVerifyStatus();
       switchView('report');
     }
   </script>
+
+<!-- === Highlighting & tooltips (unchanged logic) === -->
+<style id="kp360-empty-highlights-dup">
+td.kp-hl-red { background: #fde2e1 !important; }
+td.kp-hl-yellow { background: #fef3c7 !important; }
+td.kp-hl-red input, td.kp-hl-yellow input { background-color: inherit !important; }
+</style>
 
 <script id="kp360-empty-highlight-script">
 (function(){
@@ -568,8 +680,6 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       TRACKING: H[norm('Tracking Number')],
       PO_NUM: H[norm('PO Number')] ?? H[norm('PO Reference Number')]
     };
-
-    const isSalesOrderView = idx.SERVICE != null && table.getAttribute('data-view') === 'order' ? true : false;
 
     for (const tbody of table.tBodies){
       for (const tr of tbody.rows){
@@ -728,7 +838,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
   function hasVendorSKU(s){
     s = norm(s);
     return /\bUSAUTO\b/.test(s) || /\bMEYER\b/.test(s) || /\bTONSA\b/.test(s) || /\bUS AUTO\b/.test(s);
-  }
+    }
   function apply(){
     var tables = document.querySelectorAll('table');
     for (var t=0;t<tables.length;t++){
