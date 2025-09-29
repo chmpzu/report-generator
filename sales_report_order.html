@@ -77,7 +77,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
         </div>
       </div>
       <div class="right-tools">
-        <label for="exportFilename">File Name:</label>
+        <label for="exportFilename">Export as</label>
         <input type="text" id="exportFilename" class="top-input" placeholder="File name" value="Sales_Report" />
         <button onclick="exportCurrent()">Export Current View</button>
       </div>
@@ -269,16 +269,14 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       rows.forEach((row, idx) => tbody.appendChild(buildReportRowTr(row, idx)));
     }
 
-    // Build Report Row (PO Number + Custom Fields editable)
+    // Build Report Row (PO Number + CFs + Rate/Service/Tracking editable)
     function buildReportRowTr(row, idx){
       const tr = document.createElement('tr');
       const keys = ["Order Date","Ship From","Order Number","Item SKU","Quantity","Custom Field 1","Custom Field 2","Custom Field 3","Order Total","Recipient","Rate","Service","Tracking Number","PO Number"];
       keys.forEach(key => {
         const td = document.createElement('td');
 
-        if (key === "Service") {
-          td.textContent = (row[key] || '').toString().replace(/®/g,'');
-        } else if (key === "PO Number") {
+        if (key === "PO Number") {
           const input = document.createElement('input');
           input.type = 'text';
           input.className = 'po-edit';
@@ -294,16 +292,21 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
             if (shipFromCell) shipFromCell.textContent = masterDataRows[idx]["Ship From"] || '';
           });
           td.appendChild(input);
-        } else if (key === "Custom Field 1" || key === "Custom Field 2" || key === "Custom Field 3") {
+        } else if (key === "Custom Field 1" || key === "Custom Field 2" || key === "Custom Field 3"
+                   || key === "Rate" || key === "Service" || key === "Tracking Number") {
           const input = document.createElement('input');
           input.type = 'text';
           input.className = 'cf-edit';
-          input.value = row[key] || '';
+          input.value = (key === "Service" ? (row[key] || '').toString().replace(/®/g,'') : (row[key] || ''));
           input.placeholder = key;
           input.addEventListener('change', (e) => {
-            masterDataRows[idx][key] = e.target.value || '';
+            const val = key === "Service" ? e.target.value.replace(/®/g,'') : e.target.value;
+            masterDataRows[idx][key] = val || '';
           });
           td.appendChild(input);
+        } else if (key === "Service") {
+          // (kept for completeness; unreachable due to branch above)
+          td.textContent = (row[key] || '').toString().replace(/®/g,'');
         } else {
           td.textContent = row[key] || '';
         }
@@ -340,12 +343,57 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       return tr;
     }
 
+    // === New helpers for SKU-based CF transformations (LKQ + Tonsa rules) ===
+    function isPartslinkId(s){
+      const clean = String(s||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+      // Common Partslink pattern: 2 letters + 7 digits (e.g., TO2503197)
+      return /^[A-Z]{2}\d{7}$/.test(clean);
+    }
+    function transformCFPartsByVendor(itemSku, parts){
+      const sku = String(itemSku||'').toUpperCase();
+      // LKQ: Item SKU starts with LLX -> if CF value is a Partslink number, prefix with LKQ-
+      if (sku.startsWith('LLX')){
+        return parts.map(p=>{
+          const raw = String(p||'').trim();
+          if (!raw) return raw;
+          return isPartslinkId(raw) ? ('LKQ-' + raw.replace(/^LKQ-?/i,'')) : raw;
+        });
+      }
+      // Tonsa: Item SKU starts with OLX -> remove MOP/ACD tokens then prefix TON-
+      if (sku.startsWith('OLX')){
+        return parts.map(p=>{
+          let raw = String(p||'').trim();
+          if (!raw) return raw;
+          // Remove MOP/ACD (with optional following hyphen)
+          raw = raw.replace(/\b(?:MOP|ACD)-?/gi,'').replace(/^\s*-+/, '').trim();
+          if (!raw) return raw;
+          if (!/^TON-/i.test(raw)) raw = 'TON-' + raw;
+          return raw;
+        });
+      }
+      return parts;
+    }
+
     function buildSalesOrderLines(baseRow){
       const lines = [];
-      const cfParts = [baseRow["Custom Field 1"], baseRow["Custom Field 2"]]
+      // Gather CFs
+      const cfPartsRaw = [baseRow["Custom Field 1"], baseRow["Custom Field 2"]]
         .map(v => (v || '').toString().trim())
-        .filter(v => v.length > 0)
+        .filter(v => v.length > 0);
+
+      // Apply vendor-specific rules, then sort
+      const cfPartsProcessed = transformCFPartsByVendor(baseRow["Item SKU"], cfPartsRaw)
+        .filter(v => v && v.length > 0)
         .sort((a,b) => a.localeCompare(b, undefined, {numeric:true, sensitivity:'base'}));
+
+      // === NEW RULE: If CFs have exactly the same value, keep one line and bump Quantity ===
+      // Build counts per distinct CF value
+      const cfCounts = {};
+      for (const val of cfPartsProcessed) {
+        cfCounts[val] = (cfCounts[val] || 0) + 1;
+      }
+      const cfUnique = Object.keys(cfCounts);
+
       const common = {
         "Order Date": baseRow["Order Date"],
         "Ship From": baseRow["Ship From"],
@@ -359,11 +407,15 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
         "Service": (baseRow["Service"] || "").replace(/®/g,''),
         "Tracking Number": baseRow["Tracking Number"] || ""
       };
-      // Item lines (no shipping data)
-      cfParts.forEach(val => {
-        lines.push({...common, "Custom Field 1": val, "Custom Field 2": "", "Custom Field 3": "", "Rate":"", "Service":"", "Tracking Number":""});
+      const baseQty = Number(common["Quantity"]) || 1;
+
+      // Item lines (deduplicated CFs; quantity multiplied by count)
+      cfUnique.forEach(val => {
+        const qty = baseQty * (cfCounts[val] || 1);
+        lines.push({...common, "Custom Field 1": val, "Custom Field 2": "", "Custom Field 3": "", "Quantity": qty, "Rate":"", "Service":"", "Tracking Number":""});
       });
-      // Shipping line
+
+      // Shipping line (unchanged)
       lines.push({...common, "Custom Field 1":"Shipping (WD)", "Custom Field 2":"", "Custom Field 3":"", "Rate": baseRow["Rate"] || "", "Service": (baseRow["Service"] || "").replace(/®/g,''), "Tracking Number": baseRow["Tracking Number"] || ""});
       return lines;
     }
@@ -594,7 +646,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
   function norm(s){ return String(s||'').trim().replace(/\s+/g,' ').toUpperCase(); }
   function headerIndex(table, name){
     if (!table || !table.tHead) return -1;
-    var ths = table.tHead.querySelectorAll('th');
+    var ths = table.querySelectorAll('th');
     for (var i=0;i<ths.length;i++){
       if (norm(ths[i].textContent) === norm(name)) return i;
     }
@@ -635,7 +687,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
   function norm(s){ return String(s||'').trim().replace(/\s+/g,' ').toUpperCase(); }
   function headerIndex(table, name){
     if (!table || !table.tHead) return -1;
-    var ths = table.tHead.querySelectorAll('th');
+    var ths = table.querySelectorAll('th');
     var key = norm(name);
     for (var i=0;i<ths.length;i++){
       if (norm(ths[i].textContent) === key) return i;
@@ -650,7 +702,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
   }
   function hasVendorSKU(s){
     s = norm(s);
-    return /\bUSAUTO\b/.test(s) || /\BMEYER\b/.test(s) || /\BTONSA\b/.test(s) || /\bUS AUTO\b/.test(s);
+    return /\bUSAUTO\b/.test(s) || /\bMEYER\b/.test(s) || /\bTONSA\b/.test(s) || /\bUS AUTO\b/.test(s);
   }
   function apply(){
     var tables = document.querySelectorAll('table');
@@ -741,7 +793,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
   function norm(s){ return String(s||'').trim().replace(/\s+/g,' ').toUpperCase(); }
   function headerIndex(table, name){
     if (!table || !table.tHead) return -1;
-    var ths = table.tHead.querySelectorAll('th');
+    var ths = table.querySelectorAll('th');
     var key = norm(name);
     for (var i=0;i<ths.length;i++){
       if (norm(ths[i].textContent) === key) return i;
@@ -756,7 +808,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
   }
   function shipFromMatches(s){
     s = norm(s);
-    return /\bUSAUTO\b/.test(s) || /\bUS AUTO\b/.test(s) || /\BMEYER\b/.test(s) || /\BTONSA\b/.test(s);
+    return /\bUSAUTO\b/.test(s) || /\bUS AUTO\b/.test(s) || /\bMEYER\b/.test(s) || /\bTONSA\b/.test(s);
   }
   function apply(){
     var tables = document.querySelectorAll('table');
