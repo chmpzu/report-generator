@@ -206,7 +206,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
                 "Order Number": ord,
                 "Item SKU": itemSku,
                 "Quantity": row["Quantity"]||'',
-                "Custom Field 1": cf1,
+                "Custom Field 1": row["Custom Field 1"]||'',
                 "Custom Field 2": row["Custom Field 2"]||'',
                 "Custom Field 3": row["Custom Field 3"]||'',
                 "Order Total": row["Order Total"]||'',
@@ -305,7 +305,6 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
           });
           td.appendChild(input);
         } else if (key === "Service") {
-          // (kept for completeness; unreachable due to branch above)
           td.textContent = (row[key] || '').toString().replace(/®/g,'');
         } else {
           td.textContent = row[key] || '';
@@ -374,6 +373,21 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       return parts;
     }
 
+    // === Helpers for MULTI-SHIP shipping line expansion ===
+    function looksMultiShip(row){
+      const cfs = [row["Custom Field 1"], row["Custom Field 2"], row["Custom Field 3"]]
+        .map(v => String(v||'').toUpperCase());
+      const hasFulfilled = cfs.some(v => /\(FULFILLED IN[^\)]*\)/.test(v));
+      const hasMulti = cfs.some(v => /\bMULTI\s*SHIP(MENT)?\b/.test(v) || /\bMULTISHIPMENT\b/.test(v));
+      return hasFulfilled || hasMulti;
+    }
+    function splitCsv(str){
+      return String(str||'')
+        .split(',')
+        .map(s => s.trim())
+        .filter(s => s.length>0);
+    }
+
     function buildSalesOrderLines(baseRow){
       const lines = [];
       // Gather CFs
@@ -386,8 +400,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
         .filter(v => v && v.length > 0)
         .sort((a,b) => a.localeCompare(b, undefined, {numeric:true, sensitivity:'base'}));
 
-      // === NEW RULE: If CFs have exactly the same value, keep one line and bump Quantity ===
-      // Build counts per distinct CF value
+      // NEW RULE: If CFs have exactly the same value, keep one line and bump Quantity
       const cfCounts = {};
       for (const val of cfPartsProcessed) {
         cfCounts[val] = (cfCounts[val] || 0) + 1;
@@ -409,14 +422,42 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       };
       const baseQty = Number(common["Quantity"]) || 1;
 
-      // Item lines (deduplicated CFs; quantity multiplied by count)
+      // Item lines (dedup)
       cfUnique.forEach(val => {
         const qty = baseQty * (cfCounts[val] || 1);
         lines.push({...common, "Custom Field 1": val, "Custom Field 2": "", "Custom Field 3": "", "Quantity": qty, "Rate":"", "Service":"", "Tracking Number":""});
       });
 
-      // Shipping line (unchanged)
-      lines.push({...common, "Custom Field 1":"Shipping (WD)", "Custom Field 2":"", "Custom Field 3":"", "Rate": baseRow["Rate"] || "", "Service": (baseRow["Service"] || "").replace(/®/g,''), "Tracking Number": baseRow["Tracking Number"] || ""});
+      // === MULTI-SHIP: explode Shipping (WD) into multiple lines when CFs contain MULTISHIPMENT or (FULFILLED IN ...)
+      const multiShip = looksMultiShip(baseRow);
+      if (multiShip){
+        const rates = splitCsv(baseRow["Rate"]);
+        const services = splitCsv(baseRow["Service"]);
+        const tracks = splitCsv(baseRow["Tracking Number"]);
+        const n = Math.max(rates.length, services.length, tracks.length, 1);
+        for (let i=0; i<n; i++){
+          lines.push({
+            ...common,
+            "Custom Field 1":"Shipping (WD)",
+            "Custom Field 2":"",
+            "Custom Field 3":"",
+            "Rate": rates[i] ?? "",
+            "Service": (services[i] ?? "").replace(/®/g,''),
+            "Tracking Number": tracks[i] ?? ""
+          });
+        }
+      } else {
+        // Single shipping line (default behavior)
+        lines.push({
+          ...common,
+          "Custom Field 1":"Shipping (WD)",
+          "Custom Field 2":"",
+          "Custom Field 3":"",
+          "Rate": baseRow["Rate"] || "",
+          "Service": (baseRow["Service"] || "").replace(/®/g,''),
+          "Tracking Number": baseRow["Tracking Number"] || ""
+        });
+      }
       return lines;
     }
 
@@ -489,7 +530,6 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
   function isEmpty(v){
     if (v == null) return true;
     if (typeof v === 'string') return v.trim() === '';
-    // support inputs inside cells
     if (v instanceof HTMLElement){
       if (v.tagName === 'INPUT' || v.tagName === 'TEXTAREA') return v.value.trim() === '';
       return v.textContent.trim() === '';
@@ -518,7 +558,6 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
     if (!table || !table.tHead || !table.tBodies.length) return;
 
     const H = buildHeaderMap(table);
-    // Canonical header keys (normalize both Report and Order views)
     const idx = {
       SHIP_FROM: H[norm('Ship From')],
       ITEM_SKU: H[norm('Item SKU')],
@@ -534,7 +573,6 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
 
     for (const tbody of table.tBodies){
       for (const tr of tbody.rows){
-        // clear prior classes
         tr.querySelectorAll('td.kp-hl-red,td.kp-hl-yellow').forEach(td => { td.classList.remove('kp-hl-red','kp-hl-yellow'); });
 
         const val = {
@@ -548,22 +586,13 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
           po: cellVal(getCell(tr, idx.PO_NUM)),
         };
 
-        // Light Red
         if (idx.SHIP_FROM != null && isEmpty(val.shipFrom)) getCell(tr, idx.SHIP_FROM)?.classList.add('kp-hl-red');
         if (idx.CF1 != null && isEmpty(val.cf1)) getCell(tr, idx.CF1)?.classList.add('kp-hl-red');
         if (idx.ITEM_SKU != null && idx.CF2 != null && hasSkuPLXorPAIR(val.itemSku) && isEmpty(val.cf2)) getCell(tr, idx.CF2)?.classList.add('kp-hl-red');
         if (idx.PO_NUM != null && isEmpty(val.po)) getCell(tr, idx.PO_NUM)?.classList.add('kp-hl-red');
 
-        // Light Yellow
-        // Report view: highlight all rows
-        // Sales Order view: ONLY highlight "Shipping (WD)" line
         let allowYellow = true;
         const cf1Upper = norm(val.cf1);
-        if (cf1Upper && cf1Upper.length){
-          // heuristic: many tables don't label data-view, so infer SO by the "Shipping (WD)" rule
-          // If the row is not "Shipping (WD)", then yellow only if not an SO view or it's the shipping line
-          // We'll implement: if table *appears* to be SO (has PO Reference Number or similar) then constrain to Shipping (WD)
-        }
         const looksLikeSalesOrder = (H[norm('PO Reference Number')] != null) || (table.getAttribute('data-view') === 'order');
         if (looksLikeSalesOrder){
           allowYellow = (cf1Upper === 'SHIPPING (WD)');
@@ -583,7 +612,6 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
     tables.forEach(highlightTable);
   }
 
-  // Debounced observe
   let t = null;
   function schedule(){ if (t) cancelAnimationFrame(t); t = requestAnimationFrame(highlightAll); }
 
@@ -631,7 +659,6 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', apply);
   } else { apply(); }
-  // Re-apply on mutations in case the table rerenders
   var obs = new MutationObserver(function(m){
     for (var i=0;i<m.length;i++){
       if (m[i].type === 'childList'){ apply(); break; }
@@ -653,14 +680,13 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
     return -1;
   }
   function looksLikeSalesOrder(table){
-    // Sales Order view in this app uses "PO Reference Number"
     return headerIndex(table,'PO REFERENCE NUMBER') >= 0;
   }
   function apply(){
     var tables = document.querySelectorAll('table');
     for (var t=0;t<tables.length;t++){
       var table = tables[t];
-      if (!looksLikeSalesOrder(table)) continue; // rule only needs to remove on SO
+      if (!looksLikeSalesOrder(table)) continue;
 
       var cf2Idx = headerIndex(table,'CUSTOM FIELD 2');
       if (cf2Idx < 0) continue;
@@ -668,7 +694,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
         var rows = table.tBodies[b].rows;
         for (var r=0;r<rows.length;r++){
           var td = rows[r].children[cf2Idx];
-          if (td) td.classList.remove('kp-hl-red'); // ensure CF2 never red-highlighted on SO
+          if (td) td.classList.remove('kp-hl-red');
         }
       }
     }
@@ -676,7 +702,6 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', apply);
   } else { apply(); }
-  // re-apply on DOM mutations
   var obs = new MutationObserver(function(m){ for (var i=0;i<m.length;i++){ if (m[i].type==='childList'){ apply(); break; }}});
   obs.observe(document.documentElement||document.body, {subtree:true, childList:true});
 })();
@@ -712,7 +737,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
 
       var idxSKU = headerIndex(table, 'ITEM SKU');
       var idxFee = headerIndex(table, 'CARRIER FEE');
-      if (idxFee < 0) idxFee = headerIndex(table, 'RATE'); // Report uses "Rate"
+      if (idxFee < 0) idxFee = headerIndex(table, 'RATE');
       var idxPO  = headerIndex(table, 'PO NUMBER') >= 0 ? headerIndex(table, 'PO NUMBER') : headerIndex(table, 'PO REFERENCE NUMBER');
 
       for (var b=0;b<table.tBodies.length;b++){
@@ -733,7 +758,6 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
   if (document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', apply);
   } else { apply(); }
-  // re-apply on DOM changes
   var obs = new MutationObserver(function(m){ for (var i=0;i<m.length;i++){ if (m[i].type==='childList'){ apply(); break; }}});
   obs.observe(document.documentElement||document.body, {subtree:true, childList:true});
 })();
@@ -762,7 +786,6 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
     var tables = document.querySelectorAll('table');
     for (var t=0;t<tables.length;t++){
       var table = tables[t];
-      // Apply only on Sales Report (skip SO)
       if (looksLikeSalesOrder(table)) continue;
       var idxSKU = headerIndex(table,'ITEM SKU');
       var idxCF2 = headerIndex(table,'CUSTOM FIELD 2');
@@ -818,7 +841,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
 
       var idxShipFrom = headerIndex(table, 'SHIP FROM');
       var idxFee = headerIndex(table, 'CARRIER FEE');
-      if (idxFee < 0) idxFee = headerIndex(table, 'RATE'); // Report uses "Rate"
+      if (idxFee < 0) idxFee = headerIndex(table, 'RATE');
 
       if (idxShipFrom < 0 || idxFee < 0) continue;
 
@@ -826,14 +849,13 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
         var rows = table.tBodies[b].rows;
         for (var r=0;r<rows.length;r++){
           var tr = rows[r];
-          // clear any previous row-warn from older rule
           tr.classList.remove('kp-row-warn');
 
           var ship = val(tr.children[idxShipFrom]);
           var fee  = val(tr.children[idxFee]);
 
           if (shipFromMatches(ship) && fee !== ''){
-            tr.classList.add('kp-row-warn'); // entire line light yellow (style already defined)
+            tr.classList.add('kp-row-warn');
           }
         }
       }
@@ -842,7 +864,6 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
   if (document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', apply);
   } else { apply(); }
-  // re-apply on DOM changes
   var obs = new MutationObserver(function(m){ for (var i=0;i<m.length;i++){ if (m[i].type==='childList'){ apply(); break; }}});
   obs.observe(document.documentElement||document.body, {subtree:true, childList:true});
 })();
@@ -850,7 +871,6 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
 
 <script id="kp360-tip-bubble-script">
 (function(){
-  // Utilities
   function norm(s){ return String(s||'').trim().replace(/\s+/g,' ').toUpperCase(); }
   function headerIndex(table, name){
     if (!table || !table.tHead) return -1;
@@ -878,7 +898,6 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
   function hasFBA(s){ s = norm(s); return /(^|[^A-Z0-9])FBA([^A-Z0-9]|$)/.test(s); }
   function shipFromVendor(s){ s = norm(s); return (/\bUSAUTO\b/.test(s) || /\bUS AUTO\b/.test(s) || /MEYER/.test(s) || /TONSA/.test(s)); }
 
-  // Tooltip element
   var tip = document.createElement('div');
   tip.className = 'kp-tip';
   document.body.appendChild(tip);
@@ -913,7 +932,6 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
     var clsRed = td.classList.contains('kp-hl-red');
     var clsYellow = td.classList.contains('kp-hl-yellow');
 
-    // Gather row values for special rules
     var idxSKU = headerIndex(table,'ITEM SKU');
     var idxCF2 = headerIndex(table,'CUSTOM FIELD 2');
     var idxService = headerIndex(table,'SERVICE'); if (idxService<0) idxService = headerIndex(table,'CARRIER');
@@ -940,7 +958,6 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       if (idxTrack===idx) return '<span class="kp-tip-head">Tracking Number Missing</span><span class="kp-tip-rule">Add tracking when available.</span>';
       return '<span class="kp-tip-head">Needs attention</span><span class="kp-tip-rule">'+(header||'This field')+' is empty.</span>';
     }
-    // If part of a row-warn, defer to row reason
     if (td.parentNode.classList.contains('kp-row-warn')){
       return reasonForRow(td.parentNode);
     }
@@ -960,10 +977,8 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
   }
 
   function attachHandlers(){
-    // target all highlighted cells and rows
     var cells = document.querySelectorAll('td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td');
     cells.forEach(function(td){
-      // Avoid duplicate listeners
       if (td._kpTipBound) return;
       td._kpTipBound = true;
       td.addEventListener('mouseenter', function(ev){
@@ -984,7 +999,6 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
     document.addEventListener('DOMContentLoaded', scheduleAttach);
   } else { scheduleAttach(); }
 
-  // Re-attach on DOM updates
   var obs = new MutationObserver(function(m){ for (var i=0;i<m.length;i++){ if (m[i].type==='childList' || m[i].type==='attributes'){ scheduleAttach(); break; }}});
   obs.observe(document.documentElement||document.body, {subtree:true, childList:true, attributes:true});
 })();
