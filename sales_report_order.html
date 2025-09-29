@@ -36,6 +36,8 @@
     .po-edit,.cf-edit{width: var(--cell-input-width) !important; max-width: var(--cell-input-width) !important; padding: 5px 6px; border:1px solid var(--input-border); border-radius:8px; background:var(--input-bg); color:var(--input-text); font-size:12px;}
     .hidden{display:none}
     .author {margin: 4px 0 0 0;font-size: 13px;color: var(--muted);font-style: italic;}
+    /* tiny + button in table header */
+    .th-plus{ margin-left:6px; padding:0 6px; line-height:18px; height:20px; border:1px solid var(--input-border); background:var(--input-bg); color:var(--text); border-radius:6px; font-weight:700; cursor:pointer;}
   </style>
 
 <style id="kp360-empty-highlights">
@@ -53,12 +55,28 @@ th.kp-service-col, td.kp-service-col {min-width: 120px !important;width: 120px !
 
 <style id="kp360-tip-bubble-style">
 /* === KP360: Tip bubble for highlights === */
-.kp-tip {position: fixed;z-index: 999999;max-width: 320px;padding: 8px 10px;border-radius: 6px;background: #111;color: #fff;font-size: 12px;line-height: 1.35;box-shadow: 0 6px 18px rgba(0,0,0,.25);pointer-events: none;opacity: 0;transform: translateY(-4px);transition: opacity .12s ease, transform .12s ease;white-space: normal;word-break: break-word;}
+.kp-tip {position: fixed;z-index: 999999;max-width: 320px;padding: 8px 10px;border-radius: 6px;background: #111;color: #fff;font-size: 12px;line-height: 1.35;box-shadow:0 6px 18px rgba(0,0,0,.25);pointer-events: none;opacity: 0;transform: translateY(-4px);transition: opacity .12s ease, transform .12s ease;white-space: normal;word-break: break-word;}
 .kp-tip.show { opacity: 0.96; transform: translateY(0); }
 .kp-tip strong { font-weight: 600; }
 .kp-tip .kp-tip-head { display: block; margin-bottom: 4px; font-weight: 600; color: #fef3c7; } /* light yellow title */
 .kp-tip .kp-tip-rule { color: #cbd5e1; }
 td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
+</style>
+
+<!-- === NEW: Verification Issues Modal styles === -->
+<style id="kp360-verify-modal-style">
+.kp-modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.55);backdrop-filter:blur(2px);display:none;z-index:99998}
+.kp-modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:99999}
+.kp-modal.show,.kp-modal-backdrop.show{display:flex}
+.kp-modal-card{width:min(720px,92vw);max-height:82vh;overflow:hidden;border:1px solid var(--border);border-radius:12px;background:linear-gradient(180deg,var(--panel),var(--panel-2));box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.kp-modal-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border)}
+.kp-modal-title{font-weight:700}
+.kp-modal-body{padding:12px 14px}
+.kp-issues-wrap{border:1px solid var(--border);border-radius:10px;background:var(--chip-bg);padding:10px;max-height:48vh;overflow:auto}
+.kp-issues-wrap ul{margin:0;padding-left:18px}
+.kp-modal-foot{display:flex;gap:8px;justify-content:flex-end;padding:12px 14px;border-top:1px solid var(--border)}
+.kp-btn-ghost{background:transparent;border:1px solid var(--input-border);color:var(--text)}
+.kp-badge-err{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:12px}
 </style>
 </head>
 <body>
@@ -115,7 +133,8 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
           <tr>
             <th>Order Date</th><th>Ship From</th><th>Order Number</th><th>Item SKU</th><th>Quantity</th>
             <th>Custom Field 1</th><th>Custom Field 2</th><th>Custom Field 3</th><th>Order Total</th>
-            <th>Recipient</th><th>Carrier Fee</th><th>Service</th><th>Tracking Number</th><th>PO Reference Number</th><th>Memo</th>
+            <th>Recipient</th><th>Carrier Fee</th><th>Service</th><th>Tracking Number</th><th>PO Reference Number</th>
+            <th>Memo <button type="button" class="th-plus" title="Add 'AutoApex' to all Memo cells" onclick="addAutoApexMemo()">+</button></th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -141,6 +160,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
     let updateFilesCount = 0;
     let currentView = 'report'; // 'report' | 'order'
     let soVerified = false;     // require verification before exporting Sales Order
+    let orderMemoDefault = "";  // <-- NEW: default Memo for SO lines
 
     const exportBtn = document.getElementById('exportBtn');
     const verifyBtn = document.getElementById('verifyBtn');
@@ -162,6 +182,12 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
         exportBtn.disabled = true;
         clearVerifyStatus();
       }
+    }
+
+    // NEW: fill "AutoApex" into Memo for all Sales Order rows
+    function addAutoApexMemo(){
+      orderMemoDefault = "AutoApex";
+      if (currentView === 'order') renderSalesOrder();
     }
 
     document.getElementById('fileInput').addEventListener('change', (e)=>{ handleFiles(e); markDirty(); });
@@ -377,7 +403,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
         ["Service","Service"],
         ["Tracking Number","Tracking Number"],
         ["PO Reference Number","PO Number"],
-        ["Memo",""]
+        ["Memo","Memo"] // CHANGED to read Memo
       ];
       map.forEach(([header, key]) => {
         let val = key ? (row[key] || '') : '';
@@ -455,14 +481,15 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
         "PO Number": baseRow["PO Number"],
         "Rate": baseRow["Rate"] || "",
         "Service": (baseRow["Service"] || "").replace(/®/g,''),
-        "Tracking Number": baseRow["Tracking Number"] || ""
+        "Tracking Number": baseRow["Tracking Number"] || "",
+        "Memo": orderMemoDefault // NEW
       };
       const baseQty = Number(common["Quantity"]) || 1;
 
       // Item lines (dedup & qty bump)
       cfUnique.forEach(val => {
         const qty = baseQty * (cfCounts[val] || 1);
-        lines.push({...common, "Custom Field 1": val, "Custom Field 2": "", "Custom Field 3": "", "Quantity": qty, "Rate":"", "Service":"", "Tracking Number":""});
+        lines.push({...common, "Custom Field 1": val, "Custom Field 2": "", "Custom Field 3": "", "Quantity": qty, "Rate":"", "Service":"", "Tracking Number":"" , "Memo": orderMemoDefault});
       });
 
       // Shipping lines (single or multi)
@@ -471,7 +498,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
         const rates = splitCsv(baseRow["Rate"]);
         const services = splitCsv(baseRow["Service"]);
         const tracks = splitCsv(baseRow["Tracking Number"]);
-        const poList = splitCsv(baseRow["PO Number"]); // NEW: per-line PO support
+        const poList = splitCsv(baseRow["PO Number"]); // per-line PO support
         const n = Math.max(rates.length, services.length, tracks.length, 1);
         for (let i=0; i<n; i++){
           lines.push({
@@ -482,7 +509,8 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
             "Rate": rates[i] ?? "",
             "Service": (services[i] ?? "").replace(/®/g,''),
             "Tracking Number": tracks[i] ?? "",
-            "PO Number": poList[i] ?? baseRow["PO Number"] // assign PO per shipping line when provided
+            "PO Number": poList[i] ?? baseRow["PO Number"],
+            "Memo": orderMemoDefault
           });
         }
       } else {
@@ -494,7 +522,8 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
           "Rate": baseRow["Rate"] || "",
           "Service": (baseRow["Service"] || "").replace(/®/g,''),
           "Tracking Number": baseRow["Tracking Number"] || "",
-          "PO Number": baseRow["PO Number"]
+          "PO Number": baseRow["PO Number"],
+          "Memo": orderMemoDefault
         });
       }
       return lines;
@@ -510,6 +539,35 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       document.getElementById('ordersByDate').textContent = `Lines by Date: ${parts.join('    |    ')}`;
       exploded.forEach(row => tbody.appendChild(buildOrderRowTr(row)));
     }
+
+    // === NEW: Modal helpers ===
+    function openVerifyModal(issues){
+      const backdrop = document.getElementById('kp360VerifyBackdrop');
+      const modal = document.getElementById('kp360VerifyModal');
+      const list = document.getElementById('kp360VerifyList');
+      const count = document.getElementById('kp360VerifyCount');
+      list.innerHTML = '';
+      issues.forEach(msg=>{
+        const li = document.createElement('li');
+        li.textContent = msg;
+        list.appendChild(li);
+      });
+      count.textContent = issues.length;
+      backdrop.classList.add('show');
+      modal.classList.add('show');
+      // focus the Close button for a11y
+      setTimeout(()=>document.getElementById('kp360VerifyClose').focus(), 0);
+    }
+    function closeVerifyModal(){
+      document.getElementById('kp360VerifyBackdrop').classList.remove('show');
+      document.getElementById('kp360VerifyModal').classList.remove('show');
+    }
+    function copyVerifyIssues(){
+      const items = Array.from(document.querySelectorAll('#kp360VerifyList li')).map(li=>'- '+li.textContent);
+      const text = 'Verification issues:\n' + items.join('\n');
+      navigator.clipboard.writeText(text).catch(()=>{ /* ignore */ });
+    }
+    document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeVerifyModal(); });
 
     // === Verification (Sales Order) ===
     verifyBtn.addEventListener('click', verifySalesOrder);
@@ -564,7 +622,8 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
         soVerified = false;
         exportBtn.disabled = true;
         setVerifyStatus('err', `Found ${issues.length} issue(s). Please fix and re-verify.`);
-        alert('Verification issues:\n- ' + issues.join('\n- '));
+        // === CHANGED: Show modal instead of alert ===
+        openVerifyModal(issues);
       }
 
       // re-render SO to ensure latest Ship From etc. reflected
@@ -579,6 +638,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       if(currentView==='order'){
         // Safety: block export if not verified
         if (!soVerified){
+          // keep existing UX for this guard
           alert('Please verify the Sales Order table before exporting.');
           return;
         }
@@ -599,7 +659,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
           "Service": (r["Service"] || ""),
           "Tracking Number": r["Tracking Number"] || "",
           "PO Reference Number": r["PO Number"] || "",
-          "Memo": ""
+          "Memo": r["Memo"] || ""   // CHANGED to include Memo content
         }));
       } else {
         headers = ["Order Date","Ship From","Order Number","Item SKU","Quantity","Custom Field 1","Custom Field 2","Custom Field 3","Order Total","Recipient","Rate","Service","Tracking Number","PO Number"];
@@ -619,6 +679,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
     function resetAll() {
       masterDataRows = []; masterOrderNumbers.clear(); isFirstFile = true; updateFilesCount = 0;
       soVerified = false; exportBtn.disabled = (currentView==='order');
+      orderMemoDefault = ""; // reset memo default
       document.getElementById('fileInput').value = '';
       document.getElementById('totalOrders').textContent = 'Total Orders: 0';
       document.getElementById('ordersByDate').textContent = currentView==='order' ? 'Lines by Date:' : 'Orders by Date:';
@@ -628,6 +689,30 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       switchView('report');
     }
   </script>
+
+<!-- === NEW: Verification Issues Modal markup === -->
+<div id="kp360VerifyBackdrop" class="kp-modal-backdrop" onclick="closeVerifyModal()"></div>
+<div id="kp360VerifyModal" class="kp-modal" role="dialog" aria-modal="true" aria-labelledby="kp360VerifyTitle">
+  <div class="kp-modal-card" onclick="event.stopPropagation()">
+    <div class="kp-modal-head">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="kp-badge-err">⚠ Verification issues</span>
+        <span id="kp360VerifyTitle" class="kp-modal-title">Please review</span>
+      </div>
+      <button id="kp360VerifyClose" class="kp-btn-ghost" onclick="closeVerifyModal()" aria-label="Close">Close</button>
+    </div>
+    <div class="kp-modal-body">
+      <p style="margin:0 0 8px 0;">Found <strong id="kp360VerifyCount">0</strong> issue(s). Fix them in the table and click <em>Verify table</em> again.</p>
+      <div class="kp-issues-wrap">
+        <ul id="kp360VerifyList"></ul>
+      </div>
+    </div>
+    <div class="kp-modal-foot">
+      <button class="kp-btn-ghost" onclick="copyVerifyIssues()" title="Copy issues to clipboard">Copy list</button>
+      <button onclick="closeVerifyModal()">Got it</button>
+    </div>
+  </div>
+</div>
 
 <!-- === Highlighting & tooltips (unchanged logic) === -->
 <style id="kp360-empty-highlights-dup">
@@ -986,7 +1071,7 @@ td.kp-hl-red input, td.kp-hl-yellow input { background-color: inherit !important
   function norm(s){ return String(s||'').trim().replace(/\s+/g,' ').toUpperCase(); }
   function headerIndex(table, name){
     if (!table || !table.tHead) return -1;
-    var ths = table.tHead.querySelectorAll('th');
+    var ths = table.querySelectorAll('th');
     var key = norm(name);
     for (var i=0;i<ths.length;i++){ if (norm(ths[i].textContent) === key) return i; }
     return -1;
