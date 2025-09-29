@@ -28,14 +28,20 @@
     .chip.err{border-color:#ef4444;color:#991b1b;background:#fef2f2}
     .table-wrap{ width:100%; height:72vh; overflow:auto;border:1px solid var(--border); border-radius:12px;background:linear-gradient(180deg,var(--panel),var(--panel-2)); box-shadow:0 6px 18px rgba(0,0,0,.12); }
     table{width:100%; border-collapse:separate; border-spacing:0}
-    thead th{ position:sticky; top:0; z-index:5; background:var(--panel); color:var(--text);
-      text-align:left; padding:10px 12px; font-weight:600; font-size:12px; letter-spacing:.2px; border-bottom:1px solid var(--border); white-space:nowrap; }
+    thead th{ position:sticky; top:0; z-index:5; background:var(--panel); color:var(--text);text-align:left; padding:10px 12px; font-weight:600; font-size:12px; letter-spacing:.2px; border-bottom:1px solid var(--border); white-space:nowrap; }
     tbody td{ padding:9px 12px; border-bottom:1px solid var(--border); font-size:13px; color:var(--text) }
     tbody tr:nth-child(odd) td{ background:var(--table-alt) }
     tbody tr:hover td{ background:var(--table-hover) }
     .po-edit,.cf-edit{width: 220px; max-width: 100%; padding: 6px 8px;border:1px solid var(--input-border); border-radius:8px; background:var(--input-bg); color:var(--input-text);}
     .hidden{display:none}
     .author {margin: 4px 0 0 0;font-size: 13px;color: var(--muted);font-style: italic;}
+    <style>
+  /* Compact, fixed input widths so the table fits without scrolling */
+  :root { --cell-input-width: 150px; } /* try 120–150px to taste */
+
+  .po-edit, .cf-edit{width: var(--cell-input-width) !important;max-width: var(--cell-input-width) !important;padding: 5px 6px;font-size: 12px;}
+</style>
+
   </style>
 
 <style id="kp360-empty-highlights">
