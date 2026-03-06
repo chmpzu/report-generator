@@ -1,146 +1,13 @@
-<!DOCTYPE html>
-<html lang="en" data-theme="light">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>WooParts & AutoApex — Sales Report/Order Generator</title>
+<!DOCTYPE html><html lang="en" data-theme="light"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>WooParts — Sales Report/Order Generator</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-  <style>
-    :root{--bg: #f6f8fb; --panel:#fff; --panel-2:#fcfdff; --text:#0f172a; --muted:#445268;--brand:#2563eb; --brand-2:#06b6d4; --border:#dbe2ea; --ring: rgba(37,99,235,.25);--chip-bg:#f8fafc; --chip-border:#e2e8f0; --input-bg:#fff; --input-border:#cbd5e1; --input-text:#0f172a;--table-alt:#f1f5f9; --table-hover:#eef6ff; --button-text:#fff;}
-    :root[data-theme="dark"]{--bg:#0b1220; --panel:#0f172a; --panel-2:#0b1224; --text:#e6edf3; --muted:#9fb1c7;--brand:#60a5fa; --brand-2:#22d3ee; --border:#1f2a3a; --ring:rgba(110,231,255,.35);--chip-bg:#0f172a; --chip-border:#1f2a3a; --input-bg:#0b1220; --input-border:#233048; --input-text:#e6edf3;--table-alt: rgba(255,255,255,.02); --table-hover: rgba(96,165,250,.07); --button-text:#0b1220;}
-    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui; padding:14px}
-    .shell{width:100%}
-    .header,.controls{background:linear-gradient(180deg,var(--panel),var(--panel-2)); border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:12px}
-    .controls{position:sticky;top:8px;z-index:10}
-    h1{margin:0;font-size:20px}
-    .left-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-    .right-tools{display:flex;gap:8px;align-items:center;justify-content:flex-end}
-    input[type="file"],.top-input{padding:8px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--input-text);border-radius:10px;min-width:240px}
-    button{padding:9px 12px;border:0;border-radius:10px;background:linear-gradient(180deg, var(--brand), var(--brand-2));color:var(--button-text);font-weight:600;cursor:pointer}
-    button[disabled]{opacity:.55; cursor:not-allowed;}
-    .pill{padding:6px 10px;border:1px solid var(--input-border);border-radius:999px;background:var(--input-bg);color:#445268;font-size:12px;cursor:pointer}
-    .pill.active{outline:3px solid var(--ring)}
-    #meta{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px}
-    .chip{font-size:12px;border:1px solid var(--chip-border);background:var(--chip-bg);border-radius:999px;padding:6px 10px;color:#475569}
-    .chip.ok{border-color:#16a34a;color:#166534;background:#ecfdf5}
-    .chip.warn{border-color:#f59e0b;color:#92400e;background:#fffbeb}
-    .chip.err{border-color:#ef4444;color:#991b1b;background:#fef2f2}
-    .table-wrap{ width:100%; height:76vh; overflow:auto;border:1px solid var(--border); border-radius:12px;background:linear-gradient(180deg,var(--panel),var(--panel-2)); box-shadow:0 6px 18px rgba(0,0,0,.12); }
-    table{width:100%; border-collapse:separate; border-spacing:0}
-    thead th{ position:sticky; top:0; z-index:5; background:var(--panel); color:var(--text);
-      text-align:left; padding:10px 12px; font-weight:600; font-size:12px; letter-spacing:.2px; border-bottom:1px solid var(--border); white-space:nowrap; }
-    tbody td{ padding:9px 12px; border-bottom:1px solid var(--border); font-size:13px; color:var(--text) }
-    tbody tr:nth-child(odd) td{ background:var(--table-alt) }
-    tbody tr:hover td{ background:var(--table-hover) }
-    .po-edit,.cf-edit{width: var(--cell-input-width) !important; max-width: var(--cell-input-width) !important; padding: 5px 6px; border:1px solid var(--input-border); border-radius:8px; background:var(--input-bg); color:var(--input-text); font-size:12px;}
-    .hidden{display:none}
-    .author {margin: 4px 0 0 0;font-size: 13px;color: var(--muted);font-style: italic;}
-    /* tiny + button in table header */
-    .th-plus{ margin-left:6px; padding:0 6px; line-height:18px; height:20px; border:1px solid var(--input-border); background:var(--input-bg); color:var(--text); border-radius:6px; font-weight:700; cursor:pointer;}
-  </style>
-
-<style id="kp360-empty-highlights">
-/* === KP360: Empty-cell highlighting === */
-td.kp-hl-red { background: #fde2e1 !important; }      /* Light Red */
-td.kp-hl-yellow { background: #fef3c7 !important; }   /* Light Yellow */
-td.kp-hl-red input, td.kp-hl-yellow input { background-color: inherit !important; }
-</style>
-
-<style id="kp360-service-col-style">
-/* === KP360: widen Service/Carrier column === */
-th.kp-service-col, td.kp-service-col {min-width: 120px !important;width: 120px !important;white-space: normal;word-break: break-word;}</style>
-
-<style id="kp360-row-warning-style">tr.kp-row-warn > td { background: #fde2e1 !important;}</style>
-
-<style id="kp360-tip-bubble-style">
-/* === KP360: Tip bubble for highlights === */
-.kp-tip {position: fixed;z-index: 999999;max-width: 320px;padding: 8px 10px;border-radius: 6px;background: #111;color: #fff;font-size: 12px;line-height: 1.35;box-shadow:0 6px 18px rgba(0,0,0,.25);pointer-events: none;opacity: 0;transform: translateY(-4px);transition: opacity .12s ease, transform .12s ease;white-space: normal;word-break: break-word;}
-.kp-tip.show { opacity: 0.96; transform: translateY(0); }
-.kp-tip strong { font-weight: 600; }
-.kp-tip .kp-tip-head { display: block; margin-bottom: 4px; font-weight: 600; color: #fef3c7; } /* light yellow title */
-.kp-tip .kp-tip-rule { color: #cbd5e1; }
-td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
-</style>
-
-<!-- === NEW: Verification Issues Modal styles === -->
-<style id="kp360-verify-modal-style">
-.kp-modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.55);backdrop-filter:blur(2px);display:none;z-index:99998}
-.kp-modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:99999}
-.kp-modal.show,.kp-modal-backdrop.show{display:flex}
-.kp-modal-card{width:min(720px,92vw);max-height:82vh;overflow:hidden;border:1px solid var(--border);border-radius:12px;background:linear-gradient(180deg,var(--panel),var(--panel-2));box-shadow:0 20px 60px rgba(0,0,0,.35)}
-.kp-modal-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border)}
-.kp-modal-title{font-weight:700}
-.kp-modal-body{padding:12px 14px}
-.kp-issues-wrap{border:1px solid var(--border);border-radius:10px;background:var(--chip-bg);padding:10px;max-height:48vh;overflow:auto}
-.kp-issues-wrap ul{margin:0;padding-left:18px}
-.kp-modal-foot{display:flex;gap:8px;justify-content:flex-end;padding:12px 14px;border-top:1px solid var(--border)}
-.kp-btn-ghost{background:transparent;border:1px solid var(--input-border);color:var(--text)}
-.kp-badge-err{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:12px}
-</style>
-</head>
-<body>
-  <div class="shell">
-    <div class="header" style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center">
-  <div>
-    <h1>WooParts &amp; AutoApex — Sales Report/Order Generator</h1>
-    <p class="author">by Christine Anastacio</p>
-  </div>
-  <div class="right-tools"><button id="themeToggle">🌗</button></div>
-</div>
-
-    <div class="controls" style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center">
-      <div class="left-controls">
-        <input type="file" id="fileInput" multiple accept=".xlsx, .xls, .csv" />
-        <button class="secondary" onclick="resetAll()">Reset</button>
-        <div class="view-toggle" style="display:flex;gap:6px">
-          <span id="pillReport" class="pill active" onclick="switchView('report')">Sales Report</span>
-          <span id="pillOrder" class="pill" onclick="switchView('order')">Sales Order</span>
-        </div>
-      </div>
-      <div class="right-tools" style="display:flex;gap:8px;align-items:center">
-        <label for="exportFilename">Export as</label>
-        <input type="text" id="exportFilename" class="top-input" placeholder="File name" value="Sales_Report" />
-        <button id="verifyBtn" class="secondary hidden" title="Verify Sales Order table before export">Verify table</button>
-        <button id="exportBtn" onclick="exportCurrent()" disabled>Export Current View</button>
-      </div>
-    </div>
-
-    <div id="meta">
-      <div id="totalOrders" class="chip">Total Orders: 0</div>
-      <div id="ordersByDate" class="chip">Orders by Date:</div>
-      <div id="verifyStatus" class="chip hidden"></div>
-    </div>
-
-    <div class="table-wrap" id="reportWrap">
-      <table id="reportTable">
-        <thead>
-          <tr>
-            <th>Order Date</th><th>Ship From</th><th>Order Number</th><th>Item SKU</th><th>Quantity</th>
-            <th>Custom Field 1</th><th>Custom Field 2</th><th>Custom Field 3</th><th>Order Total</th>
-            <th>Recipient</th><th>Rate</th><th>Service</th><th>Tracking Number</th><th>PO Number</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-
-    <div style="height:10px"></div>
-
-    <div class="table-wrap hidden" id="orderWrap">
-      <table id="orderTable" data-view="order">
-        <thead>
-          <tr>
-            <th>Order Date</th><th>Ship From</th><th>Order Number</th><th>Item SKU</th><th>Quantity</th>
-            <th>Custom Field 1</th><th>Custom Field 2</th><th>Custom Field 3</th><th>Order Total</th>
-            <th>Recipient</th><th>Carrier Fee</th><th>Service</th><th>Tracking Number</th><th>PO Reference Number</th>
-            <th>Memo <button type="button" class="th-plus" title="Add 'AutoApex' to all Memo cells" onclick="addAutoApexMemo()">+</button></th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </div>
+  <style>:root{--bg:#f6f8fb;--panel:#fff;--panel-2:#fcfdff;--text:#0f172a;--muted:#445268;--brand:#2563eb;--brand-2:#06b6d4;--border:#dbe2ea;--ring:rgba(37,99,235,.25);--chip-bg:#f8fafc;--chip-border:#e2e8f0;--input-bg:#fff;--input-border:#cbd5e1;--input-text:#0f172a;--table-alt:#f1f5f9;--table-hover:#eef6ff;--button-text:#fff}:root[data-theme="dark"]{--bg:#0b1220;--panel:#0f172a;--panel-2:#0b1224;--text:#e6edf3;--muted:#9fb1c7;--brand:#60a5fa;--brand-2:#22d3ee;--border:#1f2a3a;--ring:rgba(110,231,255,.35);--chip-bg:#0f172a;--chip-border:#1f2a3a;--input-bg:#0b1220;--input-border:#233048;--input-text:#e6edf3;--table-alt:rgba(255,255,255,.02);--table-hover:rgba(96,165,250,.07);--button-text:#0b1220}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui;padding:14px}.shell{width:100%}.header,.controls{background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px}.controls{position:sticky;top:8px;z-index:10}h1{margin:0;font-size:20px}.left-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.right-tools{display:flex;gap:8px;align-items:center;justify-content:flex-end}input[type="file"],.top-input{padding:8px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--input-text);border-radius:10px;min-width:240px}button{padding:9px 12px;border:0;border-radius:10px;background:linear-gradient(180deg,var(--brand),var(--brand-2));color:var(--button-text);font-weight:600;cursor:pointer}button[disabled]{opacity:.55;cursor:not-allowed}.pill{padding:6px 10px;border:1px solid var(--input-border);border-radius:999px;background:var(--input-bg);color:#445268;font-size:12px;cursor:pointer}.pill.active{outline:3px solid var(--ring)}#meta{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px}.chip{font-size:12px;border:1px solid var(--chip-border);background:var(--chip-bg);border-radius:999px;padding:6px 10px;color:#475569}.chip.ok{border-color:#16a34a;color:#166534;background:#ecfdf5}.chip.warn{border-color:#f59e0b;color:#92400e;background:#fffbeb}.chip.err{border-color:#ef4444;color:#991b1b;background:#fef2f2}.table-wrap{width:100%;height:auto;overflow:auto;border:1px solid var(--border);border-radius:12px;background:linear-gradient(180deg,var(--panel),var(--panel-2));box-shadow:0 6px 18px rgba(0,0,0,.12)}table{width:100%;border-collapse:separate;border-spacing:0}thead th{position:sticky;top:0;z-index:5;background:var(--panel);color:var(--text);text-align:left;padding:10px 12px;font-weight:600;font-size:12px;letter-spacing:.2px;border-bottom:1px solid var(--border);white-space:nowrap}tbody td{padding:9px 12px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text)}tbody tr:nth-child(odd) td{background:var(--table-alt)}tbody tr:hover td{background:var(--table-hover)}.po-edit,.cf-edit{width:var(--cell-input-width) !important;max-width:var(--cell-input-width) !important;padding:5px 6px;border:1px solid var(--input-border);border-radius:8px;background:var(--input-bg);color:var(--input-text);font-size:12px}.hidden{display:none}.author{margin:4px 0 0 0;font-size:13px;color:var(--muted);font-style:italic}.th-plus{margin-left:6px;padding:0 6px;line-height:18px;height:20px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--text);border-radius:6px;font-weight:700;cursor:pointer}</style>
+<style id="kp360-empty-highlights">td.kp-hl-red{background:#fde2e1 !important}td.kp-hl-yellow{background:#fef3c7 !important}td.kp-hl-red input,td.kp-hl-yellow input{background-color:inherit !important}</style>
+<style id="kp360-service-col-style">th.kp-service-col,td.kp-service-col{min-width:120px !important;width:120px !important;white-space:normal;word-break:break-word}</style>
+<style id="kp360-row-warning-style">tr.kp-row-warn>td{background:#fde2e1 !important}</style>
+<style id="kp360-tip-bubble-style">.kp-tip{position:fixed;z-index:999999;max-width:320px;padding:8px 10px;border-radius:6px;background:#111;color:#fff;font-size:12px;line-height:1.35;box-shadow:0 6px 18px rgba(0,0,0,.25);pointer-events:none;opacity:0;transform:translateY(-4px);transition:opacity .12s ease,transform .12s ease;white-space:normal;word-break:break-word}.kp-tip.show{opacity:0.96;transform:translateY(0)}.kp-tip strong{font-weight:600}.kp-tip .kp-tip-head{display:block;margin-bottom:4px;font-weight:600;color:#fef3c7}.kp-tip .kp-tip-rule{color:#cbd5e1}td.kp-hl-red,td.kp-hl-yellow,tr.kp-row-warn>td{position:relative}</style>
+<style id="kp360-verify-modal-style">.kp-modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.55);backdrop-filter:blur(2px);display:none;z-index:99998}.kp-modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:99999}.kp-modal.show,.kp-modal-backdrop.show{display:flex}.kp-modal-card{width:min(720px,92vw);max-height:82vh;overflow:hidden;border:1px solid var(--border);border-radius:12px;background:linear-gradient(180deg,var(--panel),var(--panel-2));box-shadow:0 20px 60px rgba(0,0,0,.35)}.kp-modal-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border)}.kp-modal-title{font-weight:700}.kp-modal-body{padding:12px 14px}.kp-issues-wrap{border:1px solid var(--border);border-radius:10px;background:var(--chip-bg);padding:10px;max-height:48vh;overflow:auto}.kp-issues-wrap ul{margin:0;padding-left:18px}.kp-modal-foot{display:flex;gap:8px;justify-content:flex-end;padding:12px 14px;border-top:1px solid var(--border)}.kp-btn-ghost{background:transparent;border:1px solid var(--input-border);color:var(--text)}.kp-badge-err{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:12px}</style>
+</head><body><div class="shell"><div class="header" style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center"><div><h1>WooParts — Sales Report/Order Generator</h1><p class="author">by Christine Anastacio</p></div><div class="right-tools"><button id="themeToggle">🌗</button></div></div><div class="controls" style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center"><div class="left-controls"><input type="file" id="fileInput" multiple accept=".xlsx, .xls, .csv" /><button class="secondary" onclick="resetAll()">Reset</button><div class="view-toggle" style="display:flex;gap:6px"><span id="pillReport" class="pill active" onclick="switchView('report')">Sales Report</span><span id="pillOrder" class="pill" onclick="switchView('order')">Sales Order</span></div></div><div class="right-tools" style="display:flex;gap:8px;align-items:center"><label for="exportFilename">Export as</label><input type="text" id="exportFilename" class="top-input" placeholder="File name" value="Sales_Report" /><button id="copyDropshipBtn" class="secondary" title="Copy all lines with Dropship ship-from">Copy Dropship</button><button id="copyJwlBtn" class="secondary" title="Copy Sales Report rows with JWL">Copy JWL</button><button id="verifyBtn" class="secondary hidden" title="Verify Sales Order table before export">Verify table</button><button id="exportBtn" onclick="exportCurrent()" disabled>Export Current View</button></div></div><div id="meta"><div id="totalOrders" class="chip">Total Orders: 0</div><div id="ordersByDate" class="chip">Orders by Date:</div><div id="verifyStatus" class="chip hidden"></div></div><div class="table-wrap" id="reportWrap"><table id="reportTable"><thead><tr><th>Order Date</th><th>Ship From</th><th>Order Number</th><th>Item SKU</th><th>Quantity</th><th>Custom Field 1</th><th>Custom Field 2</th><th>Custom Field 3</th><th>Order Total</th><th>Recipient</th><th>Rate</th><th>Service</th><th>Tracking Number</th><th>PO Number</th></tr></thead><tbody></tbody></table></div><div style="height:10px"></div><div class="table-wrap hidden" id="orderWrap"><table id="orderTable" data-view="order"><thead><tr><th>Order Date</th><th>Ship From</th><th>Order Number</th><th>Item SKU</th><th>Quantity</th><th>Custom Field 1</th><th>Custom Field 2</th><th>Custom Field 3</th><th>Order Total</th><th>Recipient</th><th>Carrier Fee</th><th>Service</th><th>Tracking Number</th><th>PO Reference Number</th><th>Memo <select id="memoPreset" class="top-input" style="min-width:150px;padding:4px 8px" onchange="setMemoPreset(this.value)"><option value=""></option><option value="AutoApex">AutoApex</option><option value="AutoPartsNova">AutoPartsNova</option></select></th></tr></thead><tbody></tbody></table></div></div>
 
   <script>
     // theme toggle
@@ -161,6 +28,8 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
     let currentView = 'report'; // 'report' | 'order'
     let soVerified = false;     // require verification before exporting Sales Order
     let orderMemoDefault = "";  // <-- NEW: default Memo for SO lines
+
+    function skuHasCLX(sku) { return ((sku || "") + "").toUpperCase().includes("CLX"); }
 
     const exportBtn = document.getElementById('exportBtn');
     const verifyBtn = document.getElementById('verifyBtn');
@@ -184,10 +53,11 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       }
     }
 
-    // NEW: fill "AutoApex" into Memo for all Sales Order rows
-    function addAutoApexMemo(){
-      orderMemoDefault = "AutoApex";
-      if (currentView === 'order') renderSalesOrder();
+    function setMemoPreset(value){
+      orderMemoDefault = value || "";
+      const memoPreset = document.getElementById("memoPreset");
+      if (memoPreset && memoPreset.value !== orderMemoDefault) memoPreset.value = orderMemoDefault;
+      if (currentView === "order") renderSalesOrder();
     }
 
     document.getElementById('fileInput').addEventListener('change', (e)=>{ handleFiles(e); markDirty(); });
@@ -204,6 +74,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       // Export filename & button lock/verify visibility
       if(view==='order'){
         document.getElementById('exportFilename').value = 'Sales_Order';
+        const memoPreset = document.getElementById('memoPreset'); if (memoPreset) memoPreset.value = orderMemoDefault;
         verifyBtn.classList.remove('hidden');
         exportBtn.disabled = !soVerified;  // lock until verified
         clearVerifyStatus();
@@ -241,6 +112,23 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       if (sku.includes('OLX')) return 'Tonsa Dropship';
       return '';
     }
+    
+    function computeService(srcRow){
+      // Service = Shipping Carrier Code + Shipping Class Code
+      const carrier = (srcRow["Shipping Carrier Code"] ?? srcRow["Shipping Carrier"] ?? srcRow["Carrier Code"] ?? srcRow["Carrier"] ?? '').toString().trim();
+      const cls = (srcRow["Shipping Class Code"] ?? srcRow["Shipping Class"] ?? srcRow["Class Code"] ?? srcRow["Class"] ?? '').toString().trim();
+
+      let combined = `${carrier} ${cls}`.trim().replace(/\s+/g,' ');
+      if (!combined) {
+        combined = (srcRow["Service"] ?? '').toString().trim();
+      }
+
+      // If Service is eBay Standard, ignore it (blank)
+      if (combined.toUpperCase() === 'EBAY STANDARD') return '';
+      return combined.replace(/®/g,'');
+    }
+
+
     function shipFromIsVendor(s){s=(s||'').toUpperCase();return /\bUSAUTO\b|\bUS AUTO\b|\bMEYER\b|\bTONSA\b|\bFBA WAREHOUSE\b/.test(s);}
     function formatDate(dateValue) {
       if (typeof dateValue === 'number') {
@@ -251,6 +139,31 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       return `${dt.getMonth()+1}/${dt.getDate()}/${dt.getFullYear()}`;
     }
 
+    // === NEW: prevent scientific notation for long IDs in CSV ===
+    function toPlainString(v){
+      if (v === null || v === undefined) return '';
+      if (typeof v === 'string') return v.trim();
+      if (typeof v === 'number') {
+        if (!isFinite(v)) return '';
+        return v.toLocaleString('fullwide', { useGrouping: false, maximumSignificantDigits: 21 });
+      }
+      return String(v).trim();
+    }
+    function normalizeRowIds(row){
+      const idKeys = [
+        "Order Number",
+        "Site Order ID",
+        "Invoice Number",
+        "Order #",
+        "Tracking Number",
+        "PO Number"
+      ];
+      idKeys.forEach(k => {
+        if (row[k] !== undefined) row[k] = toPlainString(row[k]);
+      });
+      return row;
+    }
+
     // File load
     function handleFiles(event) {
       const files = Array.from(event.target.files);
@@ -258,12 +171,16 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
         const reader = new FileReader();
         reader.onload = function(e) {
           let json = [];
-          if (file.name.endsWith('.csv')) { const wb = XLSX.read(e.target.result, {type:'string'}); json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]); }
+          if (file.name.endsWith('.csv')) { const wb = XLSX.read(e.target.result, {type:'string', raw:true}); json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {raw:true}); }
           else { const wb = XLSX.read(e.target.result, {type:'binary'}); json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]); }
+
+          // NEW: normalize IDs so long numbers don't become scientific notation
+          json = json.map(normalizeRowIds);
+
           if (isFirstFile) {
             masterDataRows = []; masterOrderNumbers.clear();
             json.forEach(row => {
-              const ord = row["Order Number"]||row["Site Order ID"]||row["Order #"]; if (!ord) return;
+              const ord = row["Order Number"]||row["Site Order ID"]||row["Order #"]||row["Invoice Number"]; if (!ord) return;
               const rec = (row["Recipient"]||`${row["Shipping First Name"]||''} ${row["Shipping Last Name"]||''}`).trim();
               const itemSku = row["Item SKU"]||row["SKU"]||'';
               const computedShipFrom = computeShipFrom(row);
@@ -280,7 +197,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
                 "Order Total": row["Order Total"]||'',
                 "Recipient": rec,
                 "Rate": row["Rate"]||'',
-                "Service": (row["Service"]||'').replace(/®/g,''),
+                "Service": computeService(row),
                 "Tracking Number": row["Tracking Number"]||'',
                 "PO Number": row["PO Number"]||''
               });
@@ -290,7 +207,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
           } else {
             const updates = new Map();
             json.forEach(r => {
-              const ord = r["Order Number"]||r["Site Order ID"]||r["Order #"];
+              const ord = r["Order Number"]||r["Site Order ID"]||r["Order #"]||r["Invoice Number"];
               if (!ord || !masterOrderNumbers.has(ord)) return;
               if (!updates.has(ord)) updates.set(ord, []);
               updates.get(ord).push(r);
@@ -311,7 +228,8 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
             masterDataRows = masterDataRows.map(r => {
               const updated = { ...r };
               updated["Ship From"] = computeShipFrom(updated);
-              if (skuHasFBA(r["Item SKU"])) updated["Custom Field 1"] = r["Item SKU"];
+                            updated["Service"] = computeService(updated);
+if (skuHasFBA(r["Item SKU"])) updated["Custom Field 1"] = r["Item SKU"];
               return updated;
             });
             updateFilesCount++;
@@ -334,7 +252,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       const parts = Object.entries(counts).map(([d,c]) => `${d}: ${c}`);
       document.getElementById('ordersByDate').textContent = `Orders by Date: ${parts.join('    |    ')}`;
 
-      rows.forEach((row, idx) => tbody.appendChild(buildReportRowTr(row, idx)));
+      rows.forEach((row, idx) => { tbody.appendChild(buildReportRowTr(row, idx)); });
     }
 
     // Build Report Row (editable: PO + CFs + Rate/Service/Tracking)
@@ -364,10 +282,12 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
           const input = document.createElement('input');
           input.type = 'text';
           input.className = 'cf-edit';
-          input.value = (key === "Service" ? (row[key] || '').toString().replace(/®/g,'') : (row[key] || ''));
+          input.value = (key === "Service" ? (row[key] || '').toString().replace(/®/g,'') : (key === "Rate" ? getSalesReportRateValue(row) : (row[key] || '')));
           input.placeholder = key;
           input.addEventListener('change', (e) => {
-            const val = key === "Service" ? e.target.value.replace(/®/g,'') : e.target.value;
+            let val = key === "Service" ? e.target.value.replace(/®/g,'') : e.target.value;
+            if (key === "Service" && String(val||'').trim().toUpperCase() === 'EBAY STANDARD') val = '';
+
             masterDataRows[idx][key] = val || '';
             // If Item SKU has FBA, keep CF1 synced to SKU as per rule
             if (key === "Custom Field 1" && skuHasFBA(masterDataRows[idx]["Item SKU"])) {
@@ -406,8 +326,16 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
         ["Memo","Memo"] // CHANGED to read Memo
       ];
       map.forEach(([header, key]) => {
-        let val = key ? (row[key] || '') : '';
+        let val = '';
+
+        if (header === "Carrier Fee") {
+          val = getSalesOrderRateValue(row);
+        } else if (key) {
+          val = row[key] || '';
+        }
+
         if (header === "Service") val = (val+'').replace(/®/g,'');
+
         const td = document.createElement('td'); td.textContent = val; tr.appendChild(td);
       });
       return tr;
@@ -419,26 +347,43 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       return /^[A-Z]{2}\d{7}$/.test(clean);
     }
     function transformCFPartsByVendor(itemSku, parts){
-      const sku = String(itemSku||'').toUpperCase();
-      if (sku.startsWith('LLX')){
-        return parts.map(p=>{
-          const raw = String(p||'').trim();
-          if (!raw) return raw;
-          return isPartslinkId(raw) ? ('LKQ-' + raw.replace(/^LKQ-?/i,'')) : raw;
-        });
-      }
-      if (sku.startsWith('OLX')){
-        return parts.map(p=>{
-          let raw = String(p||'').trim();
-          if (!raw) return raw;
-          raw = raw.replace(/\b(?:MOP|ACD)-?/gi,'').replace(/^\s*-+/, '').trim();
-          if (!raw) return raw;
-          if (!/^TON-/i.test(raw)) raw = 'TON-' + raw;
-          return raw;
-        });
-      }
-      return parts;
+  const sku = String(itemSku || '').toUpperCase(); // kept but unused
+
+  // 1) ALWAYS enforce LKQ- for anything that looks like a Partslink ID.
+  let out = parts.map(p => {
+    const raw = String(p || '').trim();
+    if (!raw) return raw;
+
+    const withoutLkq = raw.replace(/^LKQ-?/i, '').trim();
+    if (isPartslinkId(withoutLkq)) {
+      return 'LKQ-' + withoutLkq;
     }
+    return raw;
+  });
+
+  // 2) ALWAYS enforce TON- for values that look like TONSA-style codes,
+  //    but only if they are NOT Partslink (LKQ already handled above).
+  //    Normalize: strip MOP-/ACD-/extra dashes, then ensure TON- prefix.
+  out = out.map(p => {
+    let raw = String(p || '').trim();
+    if (!raw) return raw;
+
+    // If it's Partslink (possibly already normalized to LKQ-), leave it alone.
+    const noLkq = raw.replace(/^LKQ-?/i, '').trim();
+    if (isPartslinkId(noLkq)) return raw;
+
+    // Heuristics for "Tonsa-ish" CFs: starts with TON-/MOP-/ACD-
+    const looksTonsaish = /^(?:TON|MOP|ACD)-?/i.test(raw);
+    if (!looksTonsaish) return raw;
+
+    // Normalize to TON-
+    raw = raw.replace(/^(?:TON|MOP|ACD)-?/i, '').replace(/^\s*-+/, '').trim();
+    if (!raw) return raw;
+    return 'TON-' + raw;
+  });
+
+  return out;
+}
 
     // === Multi-ship helpers ===
     function looksMultiShip(row){
@@ -458,12 +403,14 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
     // Build SO lines
     function buildSalesOrderLines(baseRow){
       const lines = [];
-      const cfPartsRaw = [baseRow["Custom Field 1"], baseRow["Custom Field 2"]]
-        .map(v => (v || '').toString().trim())
-        .filter(v => v.length > 0);
+      const cf1Raw = (baseRow["Custom Field 1"] || '').toString().trim();
+      const cf2Raw = (baseRow["Custom Field 2"] || '').toString().trim();
+      const cfPartsRaw = [cf1Raw, cf2Raw].filter(v => v.length > 0);
+      const hasJWL = cfPartsRaw.some(v => containsCodeAlphaBoundary(v, 'JWL'));
+      const isCLX = skuHasCLX(baseRow["Item SKU"]);
 
       const cfPartsProcessed = transformCFPartsByVendor(baseRow["Item SKU"], cfPartsRaw)
-        .filter(v => v && v.length > 0)
+        .filter(v => (v && v.length > 0) && !containsCodeAlphaBoundary(v, 'JWL'))
         .sort((a,b) => a.localeCompare(b, undefined, {numeric:true, sensitivity:'base'}));
 
       const cfCounts = {};
@@ -486,15 +433,29 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       };
       const baseQty = Number(common["Quantity"]) || 1;
 
-      // Item lines (dedup & qty bump)
-      cfUnique.forEach(val => {
-        const qty = baseQty * (cfCounts[val] || 1);
-        lines.push({...common, "Custom Field 1": val, "Custom Field 2": "", "Custom Field 3": "", "Quantity": qty, "Rate":"", "Service":"", "Tracking Number":"" , "Memo": orderMemoDefault});
-      });
+      if (isCLX) {
+        lines.push({...common,
+          "Custom Field 1": cfPartsProcessed[0] || cf1Raw || '',
+          "Custom Field 2": cfPartsProcessed[1] || cf2Raw || '',
+          "Custom Field 3": "",
+          "Quantity": baseQty,
+          "Rate": common["Rate"],
+          "Service":"",
+          "Tracking Number":"",
+          "Memo": orderMemoDefault
+        });
+      } else {
+        // Item lines (dedup & qty bump)
+        cfUnique.forEach(val => {
+          const qty = baseQty * (cfCounts[val] || 1);
+          lines.push({...common, "Custom Field 1": val, "Custom Field 2": "", "Custom Field 3": "", "Quantity": qty, "Rate": common["Rate"], "Service":"", "Tracking Number":"" , "Memo": orderMemoDefault});
+        });
+      }
 
       // Shipping lines (single or multi)
+if (!hasJWL) {
       const multiShip = looksMultiShip(baseRow);
-      if (multiShip){
+      if (multiShip && !isCLX){
         const rates = splitCsv(baseRow["Rate"]);
         const services = splitCsv(baseRow["Service"]);
         const tracks = splitCsv(baseRow["Tracking Number"]);
@@ -526,8 +487,115 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
           "Memo": orderMemoDefault
         });
       }
+}
+
       return lines;
     }
+
+  // ---------- Copy helpers ----------
+  function sanitizeCell(val){
+    // Tab/line-safe text for TSV clipboard
+    return String(val ?? '').replace(/\t/g, ' ').replace(/\r?\n/g, ' ').trim();
+  }
+
+  // Build headers + flat data exactly like "Export" (so tracker paste matches columns)
+  function getDataAndHeadersForCopy(forceReport=false){
+    let headers, data;
+    if (!forceReport && currentView === 'order'){
+      // Use exploded Sales Order lines
+      const exploded = masterDataRows.flatMap(r => buildSalesOrderLines(r));
+      headers = [
+        "Order Date","Ship From","Order Number","Item SKU","Quantity",
+        "Custom Field 1","Custom Field 2","Custom Field 3","Order Total",
+        "Recipient","Carrier Fee","Service","Tracking Number","PO Reference Number","Memo"
+      ];
+      data = exploded.map(r => ({
+        "Order Date": r["Order Date"] || "",
+        "Ship From": r["Ship From"] || "",
+        "Order Number": r["Order Number"] || "",
+        "Item SKU": r["Item SKU"] || "",
+        "Quantity": r["Quantity"] || "",
+        "Custom Field 1": r["Custom Field 1"] || "",
+        "Custom Field 2": r["Custom Field 2"] || "",
+        "Custom Field 3": r["Custom Field 3"] || "",
+        "Order Total": r["Order Total"] || "",
+        "Recipient": r["Recipient"] || "",
+        "Carrier Fee": getSalesOrderRateValue(r),
+        "Service": (r["Service"] || ""),
+        "Tracking Number": r["Tracking Number"] || "",
+        "PO Reference Number": r["PO Number"] || "",
+        "Memo": r["Memo"] || ""
+      }));
+    } else {
+      // Use Sales Report rows (source rows)
+      headers = [
+        "Order Date","Ship From","Order Number","Item SKU","Quantity",
+        "Custom Field 1","Custom Field 2","Custom Field 3","Order Total",
+        "Recipient","Rate","Service","Tracking Number","PO Number"
+      ];
+      data = masterDataRows.map(r => {
+        const obj = {}; headers.forEach(h => obj[h] = (h === 'Rate' ? getSalesReportRateValue(r) : (r[h] ?? ''))); return obj;
+      });
+    }
+    return { headers, data };
+  }
+
+  function copyRowsWhere(predicate, {forceReport=false, toastLabel='line(s)'} = {}){
+    const { headers, data } = getDataAndHeadersForCopy(forceReport);
+    const rows = data.filter(predicate);
+    const tsv = [headers.join('\t')]
+      .concat(rows.map(r => headers.map(h => sanitizeCell(r[h])).join('\t')))
+      .join('\n');
+
+    function fallbackCopy(txt){
+      const ta = document.createElement('textarea');
+      ta.value = txt; ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } finally { document.body.removeChild(ta); }
+    }
+
+    (navigator.clipboard?.writeText(tsv) || Promise.reject())
+      .then(()=> alert(`${rows.length} ${toastLabel} copied to clipboard.`))
+      .catch(()=> { fallbackCopy(tsv); alert(`${rows.length} ${toastLabel} copied to clipboard.`); });
+  }
+
+  function isDropshipShipFrom(s){
+    return /DROPSHIP/i.test(String(s||'')); // matches Usauto Dropship, Meyer Dropship, Tonsa Dropship, etc.
+  }
+
+  function isZeroLikeAmount(v){
+    const s = String(v == null ? '' : v).trim().replace(/,/g, '');
+    return s !== '' && !Number.isNaN(Number(s)) && Number(s) === 0;
+  }
+
+  function getSalesReportRateValue(row){
+    const rate = row ? row["Rate"] : '';
+    if (row && isDropshipShipFrom(row["Ship From"]) && (rate === '' || rate == null || isZeroLikeAmount(rate))) return '';
+    return rate ?? '';
+  }
+
+  function getSalesOrderRateValue(row){
+    const rate = row ? row["Rate"] : '';
+    return (rate !== undefined && rate !== null && rate !== '') ? rate : '0.00';
+  }
+
+  // Token-aware "JWL" check, matching your containsCodeAlphaBoundary logic
+  function rowHasJWL_CF(r){
+    const blob = `${r["Custom Field 1"]||''} ${r["Custom Field 2"]||''} ${r["Custom Field 3"]||''}`;
+    return containsCodeAlphaBoundary(blob, 'JWL');
+  }
+
+  // ---------- Button wiring ----------
+  document.getElementById('copyDropshipBtn')?.addEventListener('click', () => {
+    // Copy from the CURRENT VIEW’s shape. If on Sales Order, copies exploded lines.
+    copyRowsWhere(r => isDropshipShipFrom(r["Ship From"]), { toastLabel:'Dropship line(s)' });
+  });
+
+  document.getElementById('copyJwlBtn')?.addEventListener('click', () => {
+    // Always copy from Sales Report source rows to ensure JWL matches aren’t
+    // hidden by the SO “hasJWL” filtering.
+    copyRowsWhere(rowHasJWL_CF, { forceReport:true, toastLabel:'JWL line(s)' });
+  });
 
     function renderSalesOrder(){
       const tbody = document.getElementById('orderTable').querySelector('tbody');
@@ -593,7 +661,13 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
         }
 
         // Vendor + Carrier Fee + missing PO (unexpected fee scenario)
-        if (shipFromIsVendor(row["Ship From"]) && String(row["Rate"]||'').trim()!=='' && (!row["PO Number"] || String(row["PO Number"]).trim()==='')){
+        // Ignore Dropship rows when the source amount is intentionally blank/zero:
+        // Sales Order may display 0.00, but Sales Report is supposed to stay blank.
+        const rawRate = row["Rate"];
+        const hasMeaningfulVendorFee = !isDropshipShipFrom(row["Ship From"])
+          ? String(rawRate||'').trim() !== ''
+          : !(rawRate === '' || rawRate == null || isZeroLikeAmount(rawRate));
+        if (shipFromIsVendor(row["Ship From"]) && hasMeaningfulVendorFee && (!row["PO Number"] || String(row["PO Number"]).trim()==='')){
           issues.push(`Order ${ord}: Carrier Fee present but Ship From is vendor and PO Number is empty.`);
         }
 
@@ -655,7 +729,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
           "Custom Field 3": r["Custom Field 3"] || "",
           "Order Total": r["Order Total"] || "",
           "Recipient": r["Recipient"] || "",
-          "Carrier Fee": r["Rate"] || "",
+          "Carrier Fee": getSalesOrderRateValue(r),
           "Service": (r["Service"] || ""),
           "Tracking Number": r["Tracking Number"] || "",
           "PO Reference Number": r["PO Number"] || "",
@@ -665,7 +739,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
         headers = ["Order Date","Ship From","Order Number","Item SKU","Quantity","Custom Field 1","Custom Field 2","Custom Field 3","Order Total","Recipient","Rate","Service","Tracking Number","PO Number"];
         data = masterDataRows.map(r => {
           const obj = {};
-          headers.forEach(h => obj[h] = r[h] || '');
+          headers.forEach(h => obj[h] = (h === 'Rate' ? getSalesReportRateValue(r) : (r[h] || '')));
           return obj;
         });
       }
@@ -680,6 +754,7 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
       masterDataRows = []; masterOrderNumbers.clear(); isFirstFile = true; updateFilesCount = 0;
       soVerified = false; exportBtn.disabled = (currentView==='order');
       orderMemoDefault = ""; // reset memo default
+      const memoPreset = document.getElementById("memoPreset"); if (memoPreset) memoPreset.value = "";
       document.getElementById('fileInput').value = '';
       document.getElementById('totalOrders').textContent = 'Total Orders: 0';
       document.getElementById('ordersByDate').textContent = currentView==='order' ? 'Lines by Date:' : 'Orders by Date:';
@@ -690,36 +765,9 @@ td.kp-hl-red, td.kp-hl-yellow, tr.kp-row-warn > td { position: relative; }
     }
   </script>
 
-<!-- === NEW: Verification Issues Modal markup === -->
-<div id="kp360VerifyBackdrop" class="kp-modal-backdrop" onclick="closeVerifyModal()"></div>
-<div id="kp360VerifyModal" class="kp-modal" role="dialog" aria-modal="true" aria-labelledby="kp360VerifyTitle">
-  <div class="kp-modal-card" onclick="event.stopPropagation()">
-    <div class="kp-modal-head">
-      <div style="display:flex;align-items:center;gap:8px">
-        <span class="kp-badge-err">⚠ Verification issues</span>
-        <span id="kp360VerifyTitle" class="kp-modal-title">Please review</span>
-      </div>
-      <button id="kp360VerifyClose" class="kp-btn-ghost" onclick="closeVerifyModal()" aria-label="Close">Close</button>
-    </div>
-    <div class="kp-modal-body">
-      <p style="margin:0 0 8px 0;">Found <strong id="kp360VerifyCount">0</strong> issue(s). Fix them in the table and click <em>Verify table</em> again.</p>
-      <div class="kp-issues-wrap">
-        <ul id="kp360VerifyList"></ul>
-      </div>
-    </div>
-    <div class="kp-modal-foot">
-      <button class="kp-btn-ghost" onclick="copyVerifyIssues()" title="Copy issues to clipboard">Copy list</button>
-      <button onclick="closeVerifyModal()">Got it</button>
-    </div>
-  </div>
-</div>
+<div id="kp360VerifyBackdrop" class="kp-modal-backdrop" onclick="closeVerifyModal()"></div><div id="kp360VerifyModal" class="kp-modal" role="dialog" aria-modal="true" aria-labelledby="kp360VerifyTitle"><div class="kp-modal-card" onclick="event.stopPropagation()"><div class="kp-modal-head"><div style="display:flex;align-items:center;gap:8px"><span class="kp-badge-err">⚠ Verification issues</span><span id="kp360VerifyTitle" class="kp-modal-title">Please review</span></div><button id="kp360VerifyClose" class="kp-btn-ghost" onclick="closeVerifyModal()" aria-label="Close">Close</button></div><div class="kp-modal-body"><p style="margin:0 0 8px 0;">Found <strong id="kp360VerifyCount">0</strong> issue(s). Fix them in the table and click <em>Verify table</em> again.</p><div class="kp-issues-wrap"><ul id="kp360VerifyList"></ul></div></div><div class="kp-modal-foot"><button class="kp-btn-ghost" onclick="copyVerifyIssues()" title="Copy issues to clipboard">Copy list</button><button onclick="closeVerifyModal()">Got it</button></div></div></div>
 
-<!-- === Highlighting & tooltips (unchanged logic) === -->
-<style id="kp360-empty-highlights-dup">
-td.kp-hl-red { background: #fde2e1 !important; }
-td.kp-hl-yellow { background: #fef3c7 !important; }
-td.kp-hl-red input, td.kp-hl-yellow input { background-color: inherit !important; }
-</style>
+<style id="kp360-empty-highlights-dup">td.kp-hl-red{background:#fde2e1 !important}td.kp-hl-yellow{background:#fef3c7 !important}td.kp-hl-red input,td.kp-hl-yellow input{background-color:inherit !important}</style>
 
 <script id="kp360-empty-highlight-script">
 (function(){
@@ -735,7 +783,27 @@ td.kp-hl-red input, td.kp-hl-yellow input { background-color: inherit !important
     return String(v).trim() === '';
   }
 
-  function hasSkuPLXorPAIR(s){ s = String(s||'').toUpperCase(); return /\bPLX\b/.test(s) || /\bPAIR\b/.test(s); }
+  function hasSkuPLXorPAIR(s){
+    s = String(s||'').toUpperCase();
+    return /\bPLX\b/.test(s) || /\bPAIR\b/.test(s);
+  }
+  function hasSkuCLX(s){
+    s = String(s||'').toUpperCase();
+    return /\bCLX\b/.test(s);
+  }
+
+  function hasSkuFBA(s){
+    s = String(s||'').toUpperCase();
+    return /(^|[^A-Z0-9])FBA([^A-Z0-9]|$)/.test(s);
+  }
+
+  // Ship From helpers (used for CF2 & Rate rules)
+  function isFBAShipFrom(s){
+    return String(s||'').toUpperCase().includes('FBA');
+  }
+  function isDropshipShipFrom(s){
+    return String(s||'').toUpperCase().includes('DROPSHIP');
+  }
 
   function buildHeaderMap(table){
     const map = {};
@@ -757,49 +825,105 @@ td.kp-hl-red input, td.kp-hl-yellow input { background-color: inherit !important
 
     const H = buildHeaderMap(table);
     const idx = {
-      SHIP_FROM: H[norm('Ship From')],
-      ITEM_SKU: H[norm('Item SKU')],
-      CF1: H[norm('Custom Field 1')],
-      CF2: H[norm('Custom Field 2')],
-      SERVICE: H[norm('Service')] ?? H[norm('Carrier')],
-      CARRIER_FEE: H[norm('Rate')] ?? H[norm('Carrier Fee')],
-      TRACKING: H[norm('Tracking Number')],
-      PO_NUM: H[norm('PO Number')] ?? H[norm('PO Reference Number')]
+      SHIP_FROM:   H[norm('Ship From')],
+      ITEM_SKU:    H[norm('Item SKU')],
+      CF1:         H[norm('Custom Field 1')],
+      CF2:         H[norm('Custom Field 2')],
+      SERVICE:     H[norm('Service')] ?? H[norm('Carrier')],
+      CARRIER_FEE: H[norm('Rate')]   ?? H[norm('Carrier Fee')],
+      TRACKING:    H[norm('Tracking Number')],
+      PO_NUM:      H[norm('PO Number')] ?? H[norm('PO Reference Number')]
     };
+
+    const looksLikeSalesOrder =
+      (H[norm('PO REFERENCE NUMBER')] != null) ||
+      (table.getAttribute('data-view') === 'order');
 
     for (const tbody of table.tBodies){
       for (const tr of tbody.rows){
-        tr.querySelectorAll('td.kp-hl-red,td.kp-hl-yellow').forEach(td => { td.classList.remove('kp-hl-red','kp-hl-yellow'); });
+        // clear old cell highlights; row-level kp-row-warn is handled by other scripts
+        tr.querySelectorAll('td.kp-hl-red,td.kp-hl-yellow')
+          .forEach(td => td.classList.remove('kp-hl-red','kp-hl-yellow'));
 
         const val = {
           shipFrom: cellVal(getCell(tr, idx.SHIP_FROM)),
-          itemSku: cellVal(getCell(tr, idx.ITEM_SKU)),
-          cf1: cellVal(getCell(tr, idx.CF1)),
-          cf2: cellVal(getCell(tr, idx.CF2)),
-          service: cellVal(getCell(tr, idx.SERVICE)),
-          fee: cellVal(getCell(tr, idx.CARRIER_FEE)),
+          itemSku:  cellVal(getCell(tr, idx.ITEM_SKU)),
+          cf1:      cellVal(getCell(tr, idx.CF1)),
+          cf2:      cellVal(getCell(tr, idx.CF2)),
+          service:  cellVal(getCell(tr, idx.SERVICE)),
+          fee:      cellVal(getCell(tr, idx.CARRIER_FEE)),
           tracking: cellVal(getCell(tr, idx.TRACKING)),
-          po: cellVal(getCell(tr, idx.PO_NUM)),
+          po:       cellVal(getCell(tr, idx.PO_NUM)),
         };
 
-        if (idx.SHIP_FROM != null && isEmpty(val.shipFrom)) getCell(tr, idx.SHIP_FROM)?.classList.add('kp-hl-red');
-        if (idx.CF1 != null && isEmpty(val.cf1)) getCell(tr, idx.CF1)?.classList.add('kp-hl-red');
-        if (idx.ITEM_SKU != null && idx.CF2 != null && hasSkuPLXorPAIR(val.itemSku) && isEmpty(val.cf2)) getCell(tr, idx.CF2)?.classList.add('kp-hl-red');
-        const isVendorPO = /\bUSAUTO\b|\bUS AUTO\b|\bMEYER\b|\bTONSA\b/i.test(val.shipFrom || '');
-        if (idx.PO_NUM != null && !isVendorPO && isEmpty(val.po)) getCell(tr, idx.PO_NUM)?.classList.add('kp-hl-red');
+        const isVendorPO =
+          /\bUSAUTO\b|\bUS AUTO\b|\bMEYER\b|\bTONSA\b/i.test(val.shipFrom || '');
+        const isFBAOrderSku   = hasSkuFBA(val.itemSku);
+        const isFbaShipFrom   = isFBAShipFrom(val.shipFrom);
+        const isDropshipShip  = isDropshipShipFrom(val.shipFrom);
+        const isCLXSku        = hasSkuCLX(val.itemSku);
 
+        if (idx.ITEM_SKU != null && isCLXSku && !isEmpty(val.cf2)) {
+          getCell(tr, idx.ITEM_SKU)?.classList.add('kp-hl-yellow');
+        }
+
+        // ---------- RED rules ----------
+
+        // Ship From required
+        if (idx.SHIP_FROM != null && isEmpty(val.shipFrom)){
+          getCell(tr, idx.SHIP_FROM)?.classList.add('kp-hl-red');
+        }
+
+        // CF1 required
+        if (idx.CF1 != null && isEmpty(val.cf1)){
+          getCell(tr, idx.CF1)?.classList.add('kp-hl-red');
+        }
+
+        // CF2 rule (Sales Report ONLY):
+        //  - Required for PLX/PAIR SKUs if empty
+        //  - BUT skip if Ship From is FBA
+        //  - Dropship still highlights as normal
+        if (!looksLikeSalesOrder && idx.ITEM_SKU != null && idx.CF2 != null){
+          if (hasSkuPLXorPAIR(val.itemSku) && isEmpty(val.cf2) && !isFbaShipFrom){
+            getCell(tr, idx.CF2)?.classList.add('kp-hl-red');
+          }
+        }
+        // (On Sales Order, we never add a CF2 highlight here.)
+
+        // PO required unless vendor PO or FBA SKU
+        if (idx.PO_NUM != null && !isVendorPO && !isFBAOrderSku && isEmpty(val.po)){
+          getCell(tr, idx.PO_NUM)?.classList.add('kp-hl-red');
+        }
+
+        // ---------- YELLOW rules ----------
         let allowYellow = true;
         const cf1Upper = norm(val.cf1);
-        const looksLikeSalesOrder = (H[norm('PO Reference Number')] != null) || (table.getAttribute('data-view') === 'order');
+
+        // Sales Order: only SHIPPING (WD) should get yellow
         if (looksLikeSalesOrder){
           allowYellow = (cf1Upper === 'SHIPPING (WD)');
         }
 
         if (allowYellow){
-          if (idx.SERVICE != null && isEmpty(val.service)) getCell(tr, idx.SERVICE)?.classList.add('kp-hl-yellow');
-          if (idx.CARRIER_FEE != null && isEmpty(val.fee)) getCell(tr, idx.CARRIER_FEE)?.classList.add('kp-hl-yellow');
-          if (idx.TRACKING != null && isEmpty(val.tracking)) getCell(tr, idx.TRACKING)?.classList.add('kp-hl-yellow');
+          // Service warning
+          if (idx.SERVICE != null && isEmpty(val.service)){
+            getCell(tr, idx.SERVICE)?.classList.add('kp-hl-yellow');
+          }
+
+          // Carrier Fee warning:
+          //   do NOT yellow-highlight when Ship From is FBA or any Dropship
+          if (!isFbaShipFrom && !isDropshipShip && idx.CARRIER_FEE != null && isEmpty(val.fee)){
+            getCell(tr, idx.CARRIER_FEE)?.classList.add('kp-hl-yellow');
+          }
+
+          // Tracking warning
+          if (idx.TRACKING != null && isEmpty(val.tracking)){
+            getCell(tr, idx.TRACKING)?.classList.add('kp-hl-yellow');
+          }
         }
+
+        // Note: full-row kp-row-warn is handled by kp360-row-warning-* scripts
+        // and still applies to Dropship + Carrier Fee as before.
       }
     }
   }
@@ -810,7 +934,10 @@ td.kp-hl-red input, td.kp-hl-yellow input { background-color: inherit !important
   }
 
   let t = null;
-  function schedule(){ if (t) cancelAnimationFrame(t); t = requestAnimationFrame(highlightAll); }
+  function schedule(){
+    if (t) cancelAnimationFrame(t);
+    t = requestAnimationFrame(highlightAll);
+  }
 
   document.addEventListener('DOMContentLoaded', schedule);
   window.addEventListener('load', schedule);
@@ -1051,8 +1178,9 @@ td.kp-hl-red input, td.kp-hl-yellow input { background-color: inherit !important
           var ship = val(tr.children[idxShipFrom]);
           var fee  = val(tr.children[idxFee]);
 
-          if (shipFromMatches(ship) && fee !== ''){
-            tr.classList.add('kp-row-warn');
+          var feeNum = parseFloat(String(fee || '').replace(/[^0-9.\-]/g,''));
+          if (shipFromMatches(ship) && isFinite(feeNum) && feeNum > 0){
+          tr.classList.add('kp-row-warn');
           }
         }
       }
@@ -1071,7 +1199,7 @@ td.kp-hl-red input, td.kp-hl-yellow input { background-color: inherit !important
   function norm(s){ return String(s||'').trim().replace(/\s+/g,' ').toUpperCase(); }
   function headerIndex(table, name){
     if (!table || !table.tHead) return -1;
-    var ths = table.querySelectorAll('th');
+    var ths = table.tHead.querySelectorAll('th');
     var key = norm(name);
     for (var i=0;i<ths.length;i++){ if (norm(ths[i].textContent) === key) return i; }
     return -1;
@@ -1092,6 +1220,7 @@ td.kp-hl-red input, td.kp-hl-yellow input { background-color: inherit !important
     return headerIndex(table,'PO REFERENCE NUMBER') >= 0;
   }
   function hasPLXorPAIR(s){ s = norm(s); return /\bPLX\b/.test(s) || /\bPAIR\b/.test(s); }
+  function hasCLX(s){ s = norm(s); return /\bCLX\b/.test(s); }
   function hasFBA(s){ s = norm(s); return /(^|[^A-Z0-9])FBA([^A-Z0-9]|$)/.test(s); }
   function shipFromVendor(s){ s = norm(s); return (/\bUSAUTO\b/.test(s) || /\bUS AUTO\b/.test(s) || /MEYER/.test(s) || /TONSA/.test(s)); }
 
@@ -1150,6 +1279,7 @@ td.kp-hl-red input, td.kp-hl-yellow input { background-color: inherit !important
       return '<span class="kp-tip-head">Missing value</span><span class="kp-tip-rule">'+(header||'This field')+' is required.</span>';
     }
     if (clsYellow){
+      if (idx===idxSKU && hasCLX(sku)) return '<span class="kp-tip-head">CLX review needed</span><span class="kp-tip-rule">CLX SKU detected with Custom Field 2 present. This line was not duplicated so you can review the CF manually.</span>';
       if (idxService===idx) return '<span class="kp-tip-head">Carrier Missing</span><span class="kp-tip-rule">Please provide a carrier/service.</span>';
       if (idxRate===idx) return '<span class="kp-tip-head">Carrier Fee Missing</span><span class="kp-tip-rule">Please provide a fee if applicable.</span>';
       if (idxTrack===idx) return '<span class="kp-tip-head">Tracking Number Missing</span><span class="kp-tip-rule">Add tracking when available.</span>';
@@ -1179,7 +1309,9 @@ td.kp-hl-red input, td.kp-hl-yellow input { background-color: inherit !important
       if (td._kpTipBound) return;
       td._kpTipBound = true;
       td.addEventListener('mouseenter', function(ev){
-        var html = td.parentNode.classList.contains('kp-row-warn') ? reasonForRow(td.parentNode) : reasonForCell(td);
+        var html = td.parentNode.classContains && td.parentNode.classContains('kp-row-warn')
+          ? reasonForRow(td.parentNode)
+          : reasonForCell(td);
         showTip(td, html); positionTip(ev);
       });
       td.addEventListener('mousemove', positionTip);
@@ -1200,5 +1332,12 @@ td.kp-hl-red input, td.kp-hl-yellow input { background-color: inherit !important
   obs.observe(document.documentElement||document.body, {subtree:true, childList:true, attributes:true});
 })();
 </script>
-</body>
-</html>
+<style>.shell{min-height:100vh;display:flex;flex-direction:column}.header,.controls{flex:0 0 auto}.table-wrap{flex:1 1 auto;min-height:0}</style>
+
+<style>html,body{height:100%;overflow:hidden}.shell{height:100vh;display:flex;flex-direction:column;overflow:hidden}.header,.controls{flex:0 0 auto}.table-wrap{flex:1 1 auto;min-height:0;overflow:auto;height:auto}</style>
+<style>.shell{height:100vh;display:flex;flex-direction:column;overflow:hidden}.header,.controls{flex:0 0 auto}.table-wrap{flex:1 1 auto;min-height:0;overflow:auto;height:auto}.shell::after{content:"";flex:0 0 16px}</style>
+<style id="kp360-fixed-table-height">
+  :root { --table-height: 640px; }
+  .table-wrap{height: var(--table-height) !important;max-height: var(--table-height) !important;flex: 0 0 var(--table-height) !important;overflow: auto !important;}
+</style>
+</body></html>
