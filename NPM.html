@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NPM Calculator</title>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --line: #d9dfeb;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --accent: #2563eb;
+      --accent-soft: #dbeafe;
+      --good: #166534;
+      --good-bg: #dcfce7;
+      --warn: #92400e;
+      --warn-bg: #fef3c7;
+      --bad: #991b1b;
+      --bad-bg: #fee2e2;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, Helvetica, sans-serif; background: var(--bg); color: var(--text); }
+    .wrap { max-width: 1500px; margin: 0 auto; padding: 24px; }
+    h1 { margin: 0 0 10px; font-size: 28px; }
+    .sub { margin: 0 0 24px; color: var(--muted); }
+    .grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); margin-bottom: 18px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05); }
+    .card h2 { margin: 0 0 12px; font-size: 18px; }
+    .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
+    label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 6px; }
+    input[type="file"] { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 14px; background: #fff; }
+    button { border: 0; background: var(--accent); color: #fff; border-radius: 10px; padding: 10px 14px; font-size: 14px; cursor: pointer; }
+    button.secondary { background: #475569; }
+    button.ghost { background: #e5e7eb; color: #111827; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .hint { font-size: 13px; color: var(--muted); line-height: 1.5; }
+    .status { padding: 10px 12px; border-radius: 10px; font-size: 13px; margin-top: 12px; white-space: pre-wrap; }
+    .info { background: var(--accent-soft); color: #1d4ed8; }
+    .warn { background: var(--warn-bg); color: var(--warn); }
+    .good { background: var(--good-bg); color: var(--good); }
+    .bad { background: var(--bad-bg); color: var(--bad); }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 12px; }
+    .stat { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: #fff; }
+    .stat small { color: var(--muted); display: block; margin-bottom: 6px; }
+    .stat strong { font-size: 20px; }
+    .table-wrap { overflow: auto; max-height: 70vh; border: 1px solid var(--line); border-radius: 12px; background: white; }
+    table { border-collapse: collapse; width: 100%; min-width: 1200px; }
+    th, td { border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); padding: 8px 10px; font-size: 13px; text-align: left; white-space: nowrap; }
+    th { position: sticky; top: 0; background: #eff6ff; z-index: 1; }
+    td.neg { color: var(--bad); font-weight: 700; }
+    td.pos { color: var(--good); font-weight: 700; }
+    .footer-note { margin-top: 14px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>NPM Calculator</h1>
+    <p class="sub">Upload the masterfile first, then upload one or more detail files. Matching is based on <strong>Site Order ID / Order Number / Order #</strong>.</p>
+
+    <div class="grid">
+      <div class="card">
+        <h2>1) Masterfile</h2>
+        <label for="masterFile">Upload masterfile (CSV/XLSX)</label>
+        <input id="masterFile" type="file" accept=".csv,.xlsx,.xls" />
+        <div class="row" style="margin-top:12px;">
+          <button id="loadMasterBtn">Load Masterfile</button>
+          <button id="downloadBtn" class="secondary" disabled>Download Result</button>
+          <button id="resetBtn" class="ghost">Reset</button>
+        </div>
+        <div class="hint">
+          Output columns: Date, Site Order ID, Quantity, Unit Sales Price, Total Tax Price, Total Shipping Paid, Total Amount Paid, Sales Order Total, Total Supplier Cost, SS Shipping Price, Merchant / List Fee, Total Cost, Net profit, NPM.
+        </div>
+        <div id="masterStatus" class="status info">No masterfile loaded yet.</div>
+        <div id="stats" class="stats"></div>
+      </div>
+
+      <div class="card">
+        <h2>2) Detail File</h2>
+        <label for="detailFile">Upload detail file (CSV/XLSX)</label>
+        <input id="detailFile" type="file" accept=".csv,.xlsx,.xls" />
+        <div class="row" style="margin-top:12px;">
+          <button id="mergeBtn" disabled>Merge File</button>
+        </div>
+        <div class="hint">
+          Fixed auto-rules:<br>
+          • Date = Order Date<br>
+          • Quantity = Qty / Quantity (sum by order)<br>
+          • Unit Sales Price = Unit Price<br>
+          • Total Shipping Paid = Total Shipping Price<br>
+          • Total Amount Paid = Amount Paid only<br>
+          • Total Supplier Cost = Amount only (sum by order)<br>
+          • SS Shipping Price = Rate<br>
+          • Existing masterfile values are never overwritten<br>
+          • Blank cells stay blank unless that header exists in the uploaded detail file
+        </div>
+        <div id="mergeStatus" class="status info">Load the masterfile first.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>3) Preview</h2>
+      <div class="table-wrap">
+        <table>
+          <thead id="thead"></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div class="footer-note">
+        Formula logic: Sales Order Total = Total Amount Paid - Total Tax Price - Total Shipping Paid. If Total Amount Paid is blank and Sales Order Total has a value, Total Amount Paid will copy Sales Order Total. Merchant / List Fee = Sales Order Total × 0.13. Total Cost = Total Supplier Cost + SS Shipping Price + Merchant / List Fee. Net profit = Sales Order Total - Total Cost. NPM = Net profit / Sales Order Total.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const OUTPUT_HEADERS = [
+      'Date','Site Order ID','Quantity','Unit Sales Price','Total Tax Price','Total Shipping Paid','Total Amount Paid',
+      'Sales Order Total','Total Supplier Cost','SS Shipping Price','Merchant / List Fee','Total Cost','Net profit','NPM'
+    ];
+
+    const MONEY_HEADERS = new Set([
+      'Unit Sales Price','Total Tax Price','Total Shipping Paid','Total Amount Paid','Sales Order Total',
+      'Total Supplier Cost','SS Shipping Price','Merchant / List Fee','Total Cost','Net profit'
+    ]);
+
+    const ZERO_FILL_HEADERS = [
+      'Quantity','Unit Sales Price','Total Tax Price','Total Shipping Paid','Total Amount Paid',
+      'Sales Order Total','Total Supplier Cost','SS Shipping Price','Merchant / List Fee'
+    ];
+
+    const AUTO_FILLABLE_ZERO_HEADERS = new Set([
+      'Quantity','Unit Sales Price','Total Tax Price','Total Shipping Paid','Total Amount Paid',
+      'Sales Order Total','Total Supplier Cost','SS Shipping Price'
+    ]);
+
+    const MASTER_ALIASES = {
+      date: ['date','order date'],
+      orderId: ['site order id','order number','order #','order no','order id'],
+      qty: ['quantity','qty'],
+      unitSalesPrice: ['unit sales price','unit price'],
+      totalTaxPrice: ['total tax price','tax','sales tax'],
+      totalShippingPaid: ['total shipping paid','total shipping price'],
+      totalAmountPaid: ['total amount paid'],
+      salesOrderTotal: ['sales order total'],
+      totalSupplierCost: ['total supplier cost'],
+      ssShippingPrice: ['ss shipping price','rate'],
+      merchantFee: ['merchant / list fee','merchant fee','list fee'],
+      totalCost: ['total cost'],
+      netProfit: ['net profit'],
+      npm: ['npm']
+    };
+
+    const DETAIL_EXACT_KEYS = ['totalAmountPaid','totalSupplierCost'];
+
+    const DETAIL_ALIASES = {
+      orderId: ['site order id','order number','order #','order no','order id'],
+      date: ['order date'],
+      qty: ['qty','quantity'],
+      unitSalesPrice: ['unit price'],
+      totalTaxPrice: ['total tax price','tax','sales tax'],
+      totalShippingPaid: ['total shipping price'],
+      totalAmountPaid: ['amount paid'],
+      salesOrderTotal: ['sales order total'],
+      totalSupplierCost: ['amount'],
+      ssShippingPrice: ['rate']
+    };
+
+    const masterFileInput = document.getElementById('masterFile');
+    const detailFileInput = document.getElementById('detailFile');
+    const loadMasterBtn = document.getElementById('loadMasterBtn');
+    const mergeBtn = document.getElementById('mergeBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const masterStatus = document.getElementById('masterStatus');
+    const mergeStatus = document.getElementById('mergeStatus');
+    const thead = document.getElementById('thead');
+    const tbody = document.getElementById('tbody');
+    const stats = document.getElementById('stats');
+
+    let state = {
+      masterRows: [],
+      detailRows: [],
+      detailMapping: {},
+      filledCount: 0,
+      unmatchedCount: 0,
+      mergeCount: 0
+    };
+
+    function normalizeHeader(value) {
+      return String(value ?? '').trim().toLowerCase().replace(/[_\-]+/g, ' ').replace(/\s+/g, ' ');
+    }
+
+    function isBlank(value) {
+      return value === null || value === undefined || String(value).trim() === '';
+    }
+
+    function toNumber(value) {
+      if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+      if (value instanceof Date) return 0;
+      const str = String(value ?? '').trim();
+      if (!str) return 0;
+      const cleaned = str
+        .replace(/\(([^)]+)\)/g, '-$1')
+        .replace(/,/g, '')
+        .replace(/[^0-9.\-]/g, '');
+      const parsed = parseFloat(cleaned);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function detectColumn(headers, aliases, options = {}) {
+      const normalized = headers.map(h => ({ raw: h, norm: normalizeHeader(h) }));
+      const requireExact = !!options.requireExact;
+      for (const alias of aliases) {
+        const exact = normalized.find(h => h.norm === alias);
+        if (exact) return exact.raw;
+      }
+      if (requireExact) return '';
+      for (const alias of aliases) {
+        const partial = normalized.find(h => h.norm.includes(alias) || alias.includes(h.norm));
+        if (partial) return partial.raw;
+      }
+      return '';
+    }
+
+    function readFile(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => {
+          try {
+            const workbook = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+            const sheetName = workbook.SheetNames[0];
+            const sheet = workbook.Sheets[sheetName];
+            const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+            resolve({ rows, sheetName });
+          } catch (error) {
+            reject(error);
+          }
+        };
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    function setStatus(el, type, text) {
+      el.className = `status ${type}`;
+      el.textContent = text;
+    }
+
+    function inferMapping(headers, aliasSet, exactKeys = []) {
+      const mapping = {};
+      const exactSet = new Set(exactKeys);
+      for (const key of Object.keys(aliasSet)) {
+        mapping[key] = detectColumn(headers, aliasSet[key], { requireExact: exactSet.has(key) });
+      }
+      return mapping;
+    }
+
+    function buildMasterRow(sourceRow, map) {
+      const row = {
+        'Date': map.date ? sourceRow[map.date] : '',
+        'Site Order ID': map.orderId ? sourceRow[map.orderId] : '',
+        'Quantity': map.qty ? sourceRow[map.qty] : '',
+        'Unit Sales Price': map.unitSalesPrice ? sourceRow[map.unitSalesPrice] : '',
+        'Total Tax Price': map.totalTaxPrice ? sourceRow[map.totalTaxPrice] : '',
+        'Total Shipping Paid': map.totalShippingPaid ? sourceRow[map.totalShippingPaid] : '',
+        'Total Amount Paid': map.totalAmountPaid ? sourceRow[map.totalAmountPaid] : '',
+        'Sales Order Total': map.salesOrderTotal ? sourceRow[map.salesOrderTotal] : '',
+        'Total Supplier Cost': map.totalSupplierCost ? sourceRow[map.totalSupplierCost] : '',
+        'SS Shipping Price': map.ssShippingPrice ? sourceRow[map.ssShippingPrice] : '',
+        'Merchant / List Fee': map.merchantFee ? sourceRow[map.merchantFee] : '',
+        'Total Cost': map.totalCost ? sourceRow[map.totalCost] : '',
+        'Net profit': map.netProfit ? sourceRow[map.netProfit] : '',
+        'NPM': map.npm ? sourceRow[map.npm] : ''
+      };
+      row.__matchedOnce = false;
+      row.__autoZeroHeaders = new Set();
+      computeCalculatedFields(row);
+      return row;
+    }
+
+    function computeCalculatedFields(row) {
+      const hasAmountPaid = !isBlank(row['Total Amount Paid']);
+      const hasSalesOrder = !isBlank(row['Sales Order Total']);
+      const tax = toNumber(row['Total Tax Price']);
+      const shippingPaid = toNumber(row['Total Shipping Paid']);
+      const supplierCost = toNumber(row['Total Supplier Cost']);
+      const ssShippingPrice = toNumber(row['SS Shipping Price']);
+
+      if (!hasSalesOrder && hasAmountPaid) {
+        row['Sales Order Total'] = toNumber(row['Total Amount Paid']) - tax - shippingPaid;
+      }
+
+      if (isBlank(row['Total Amount Paid']) && !isBlank(row['Sales Order Total'])) {
+        row['Total Amount Paid'] = toNumber(row['Sales Order Total']);
+      }
+
+      const salesOrderTotal = toNumber(row['Sales Order Total']);
+      row['Merchant / List Fee'] = salesOrderTotal * 0.13;
+      row['Total Cost'] = supplierCost + ssShippingPrice + toNumber(row['Merchant / List Fee']);
+      row['Net profit'] = salesOrderTotal - toNumber(row['Total Cost']);
+      row['NPM'] = salesOrderTotal !== 0 ? toNumber(row['Net profit']) / salesOrderTotal : 0;
+    }
+
+    function formatCurrency(value) {
+      return toNumber(value).toLocaleString(undefined, { style: 'currency', currency: 'USD' });
+    }
+
+    function formatNumber(value) {
+      return toNumber(value).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    }
+
+    function formatPercent(value) {
+      return `${(toNumber(value) * 100).toFixed(2)}%`;
+    }
+
+    function renderStats() {
+      const totalRows = state.masterRows.length;
+      const keyed = state.masterRows.filter(r => !isBlank(r['Site Order ID'])).length;
+      const locked = state.masterRows.filter(r => r.__matchedOnce).length;
+      stats.innerHTML = `
+        <div class="stat"><small>Total rows</small><strong>${totalRows}</strong></div>
+        <div class="stat"><small>Rows with key</small><strong>${keyed}</strong></div>
+        <div class="stat"><small>Rows already processed</small><strong>${locked}</strong></div>
+        <div class="stat"><small>Last merge filled cells</small><strong>${state.filledCount}</strong></div>
+        <div class="stat"><small>Last merge unmatched keys</small><strong>${state.unmatchedCount}</strong></div>
+        <div class="stat"><small>Total merges run</small><strong>${state.mergeCount}</strong></div>`;
+    }
+
+    function renderTable() {
+      thead.innerHTML = `<tr>${OUTPUT_HEADERS.map(h => `<th>${h}</th>`).join('')}</tr>`;
+      tbody.innerHTML = state.masterRows.map(row => `
+        <tr>
+          ${OUTPUT_HEADERS.map(header => {
+            let display = row[header];
+            let cls = '';
+            if (header === 'NPM') display = isBlank(display) ? '' : formatPercent(display);
+            else if (header === 'Quantity') display = isBlank(display) ? '' : formatNumber(display);
+            else if (MONEY_HEADERS.has(header)) display = isBlank(display) ? '' : formatCurrency(display);
+            if (header === 'Net profit') {
+              const n = toNumber(row[header]);
+              if (n > 0) cls = 'pos';
+              else if (n < 0) cls = 'neg';
+            }
+            return `<td class="${cls}">${display ?? ''}</td>`;
+          }).join('')}
+        </tr>`).join('');
+      renderStats();
+    }
+
+    function buildDetailGroups(rows, map) {
+      const groups = new Map();
+      for (const rawRow of rows) {
+        const key = map.orderId ? String(rawRow[map.orderId] ?? '').trim() : '';
+        if (!key) continue;
+        if (!groups.has(key)) {
+          groups.set(key, {
+            date: '',
+            qty: 0, qtySeen: false,
+            unitSalesPrice: '', unitSeen: false,
+            totalTaxPrice: 0, taxSeen: false,
+            totalShippingPaid: 0, shippingSeen: false,
+            totalAmountPaid: 0, amountPaidSeen: false,
+            salesOrderTotal: 0, salesOrderSeen: false,
+            totalSupplierCost: 0, supplierSeen: false,
+            ssShippingPrice: 0, ssShippingSeen: false
+          });
+        }
+        const agg = groups.get(key);
+        if (map.date && !agg.date && !isBlank(rawRow[map.date])) agg.date = rawRow[map.date];
+        if (map.qty && !isBlank(rawRow[map.qty])) { agg.qty += toNumber(rawRow[map.qty]); agg.qtySeen = true; }
+        if (map.unitSalesPrice && !agg.unitSeen && !isBlank(rawRow[map.unitSalesPrice])) { agg.unitSalesPrice = rawRow[map.unitSalesPrice]; agg.unitSeen = true; }
+        if (map.totalTaxPrice && !isBlank(rawRow[map.totalTaxPrice])) { agg.totalTaxPrice += toNumber(rawRow[map.totalTaxPrice]); agg.taxSeen = true; }
+        if (map.totalShippingPaid && !isBlank(rawRow[map.totalShippingPaid])) { agg.totalShippingPaid += toNumber(rawRow[map.totalShippingPaid]); agg.shippingSeen = true; }
+        if (map.totalAmountPaid && !isBlank(rawRow[map.totalAmountPaid])) { agg.totalAmountPaid += toNumber(rawRow[map.totalAmountPaid]); agg.amountPaidSeen = true; }
+        if (map.salesOrderTotal && !isBlank(rawRow[map.salesOrderTotal])) { agg.salesOrderTotal += toNumber(rawRow[map.salesOrderTotal]); agg.salesOrderSeen = true; }
+        if (map.totalSupplierCost && !isBlank(rawRow[map.totalSupplierCost])) { agg.totalSupplierCost += toNumber(rawRow[map.totalSupplierCost]); agg.supplierSeen = true; }
+        if (map.ssShippingPrice && !isBlank(rawRow[map.ssShippingPrice])) { agg.ssShippingPrice += toNumber(rawRow[map.ssShippingPrice]); agg.ssShippingSeen = true; }
+      }
+      return groups;
+    }
+
+    function mergeDetailIntoMaster() {
+      const map = state.detailMapping;
+      if (!map.orderId) {
+        setStatus(mergeStatus, 'bad', 'Could not detect Order Number / Order # in the detail file.');
+        return;
+      }
+
+      const grouped = buildDetailGroups(state.detailRows, map);
+      let matchedRows = 0;
+      let filledCount = 0;
+      let unmatchedCount = 0;
+
+      for (const row of state.masterRows) {
+        const key = String(row['Site Order ID'] ?? '').trim();
+        if (!key) continue;
+        const agg = grouped.get(key);
+        if (!agg) {
+          unmatchedCount += 1;
+          continue;
+        }
+        matchedRows += 1;
+
+        const fillIfBlank = (header, value, seen) => {
+          const autoZeroSet = row.__autoZeroHeaders || new Set();
+          const canReplaceAutoZero = seen && autoZeroSet.has(header) && toNumber(value) !== 0;
+          if ((isBlank(row[header]) && seen) || canReplaceAutoZero) {
+            row[header] = value;
+            autoZeroSet.delete(header);
+            row.__autoZeroHeaders = autoZeroSet;
+            filledCount += 1;
+          }
+        };
+
+        fillIfBlank('Date', agg.date, !isBlank(agg.date));
+        fillIfBlank('Quantity', agg.qty, agg.qtySeen);
+        fillIfBlank('Unit Sales Price', agg.unitSalesPrice, agg.unitSeen);
+        fillIfBlank('Total Tax Price', agg.totalTaxPrice, agg.taxSeen);
+        fillIfBlank('Total Shipping Paid', agg.totalShippingPaid, agg.shippingSeen);
+        fillIfBlank('Total Amount Paid', agg.totalAmountPaid, agg.amountPaidSeen);
+        fillIfBlank('Sales Order Total', agg.salesOrderTotal, agg.salesOrderSeen);
+        fillIfBlank('Total Supplier Cost', agg.totalSupplierCost, agg.supplierSeen);
+        fillIfBlank('SS Shipping Price', agg.ssShippingPrice, agg.ssShippingSeen);
+
+        computeCalculatedFields(row);
+
+        const activeHeaderMap = {
+          'Quantity': agg.qtySeen,
+          'Unit Sales Price': agg.unitSeen,
+          'Total Tax Price': agg.taxSeen,
+          'Total Shipping Paid': agg.shippingSeen,
+          'Total Amount Paid': agg.amountPaidSeen,
+          'Sales Order Total': agg.salesOrderSeen,
+          'Total Supplier Cost': agg.supplierSeen,
+          'SS Shipping Price': agg.ssShippingSeen,
+          'Merchant / List Fee': !isBlank(row['Sales Order Total'])
+        };
+
+        ZERO_FILL_HEADERS.forEach(header => {
+          if (isBlank(row[header]) && activeHeaderMap[header]) {
+            row[header] = 0;
+            if (AUTO_FILLABLE_ZERO_HEADERS.has(header)) {
+              row.__autoZeroHeaders.add(header);
+            }
+            filledCount += 1;
+          }
+        });
+
+        computeCalculatedFields(row);
+        row.__matchedOnce = true;
+      }
+
+      state.filledCount = filledCount;
+      state.unmatchedCount = unmatchedCount;
+      state.mergeCount += 1;
+      renderTable();
+      setStatus(
+        mergeStatus,
+        'good',
+        `Merge complete. Matched master rows: ${matchedRows}\nFilled empty cells: ${filledCount}\nMaster rows without matching detail data: ${unmatchedCount}\nTotal Supplier Cost source: Amount only.`
+      );
+    }
+
+    loadMasterBtn.addEventListener('click', async () => {
+      const file = masterFileInput.files[0];
+      if (!file) {
+        setStatus(masterStatus, 'bad', 'Please select a masterfile first.');
+        return;
+      }
+
+      try {
+        setStatus(masterStatus, 'info', 'Loading masterfile...');
+        const { rows, sheetName } = await readFile(file);
+        if (!rows.length) throw new Error('The masterfile has no rows.');
+        const headers = Object.keys(rows[0]);
+        const map = inferMapping(headers, MASTER_ALIASES);
+        if (!map.orderId) throw new Error('Could not find Site Order ID / Order Number / Order # in the masterfile.');
+        state.masterRows = rows.map(row => buildMasterRow(row, map));
+        state.filledCount = 0;
+        state.unmatchedCount = 0;
+        state.mergeCount = 0;
+        renderTable();
+        mergeBtn.disabled = false;
+        downloadBtn.disabled = false;
+        setStatus(masterStatus, 'good', `Masterfile loaded from sheet: ${sheetName}\nRows loaded: ${state.masterRows.length}`);
+        setStatus(mergeStatus, 'info', 'Masterfile is ready. Upload a detail file next.');
+      } catch (error) {
+        setStatus(masterStatus, 'bad', `Failed to load masterfile: ${error.message}`);
+      }
+    });
+
+    detailFileInput.addEventListener('change', async () => {
+      const file = detailFileInput.files[0];
+      if (!file) return;
+      try {
+        setStatus(mergeStatus, 'info', 'Reading detail file...');
+        const { rows, sheetName } = await readFile(file);
+        if (!rows.length) throw new Error('The detail file has no rows.');
+        state.detailRows = rows;
+        const headers = Object.keys(rows[0]);
+        state.detailMapping = inferMapping(headers, DETAIL_ALIASES, DETAIL_EXACT_KEYS);
+        const detected = [
+          `Order key: ${state.detailMapping.orderId || 'NOT FOUND'}`,
+          `Date: ${state.detailMapping.date || 'NOT FOUND'}`,
+          `Quantity: ${state.detailMapping.qty || 'NOT FOUND'}`,
+          `Unit Sales Price: ${state.detailMapping.unitSalesPrice || 'NOT FOUND'}`,
+          `Total Shipping Paid: ${state.detailMapping.totalShippingPaid || 'NOT FOUND'}`,
+          `Total Amount Paid: ${state.detailMapping.totalAmountPaid || 'NOT FOUND (Amount Paid only)'}`,
+          `Total Supplier Cost: ${state.detailMapping.totalSupplierCost || 'NOT FOUND (Amount only)'}`,
+          `SS Shipping Price: ${state.detailMapping.ssShippingPrice || 'NOT FOUND'}`
+        ].join('\n');
+        setStatus(mergeStatus, 'warn', `Detail file loaded from sheet: ${sheetName}\n${detected}\nClick Merge File to continue.`);
+      } catch (error) {
+        setStatus(mergeStatus, 'bad', `Failed to read detail file: ${error.message}`);
+      }
+    });
+
+    mergeBtn.addEventListener('click', () => {
+      if (!state.masterRows.length) {
+        setStatus(mergeStatus, 'bad', 'Please load the masterfile first.');
+        return;
+      }
+      if (!state.detailRows.length) {
+        setStatus(mergeStatus, 'bad', 'Please upload a detail file first.');
+        return;
+      }
+      mergeDetailIntoMaster();
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      if (!state.masterRows.length) return;
+      const exportRows = state.masterRows.map(row => ({
+        'Date': row['Date'],
+        'Site Order ID': row['Site Order ID'],
+        'Quantity': isBlank(row['Quantity']) ? '' : toNumber(row['Quantity']),
+        'Unit Sales Price': isBlank(row['Unit Sales Price']) ? '' : toNumber(row['Unit Sales Price']),
+        'Total Tax Price': isBlank(row['Total Tax Price']) ? '' : toNumber(row['Total Tax Price']),
+        'Total Shipping Paid': isBlank(row['Total Shipping Paid']) ? '' : toNumber(row['Total Shipping Paid']),
+        'Total Amount Paid': isBlank(row['Total Amount Paid']) ? '' : toNumber(row['Total Amount Paid']),
+        'Sales Order Total': isBlank(row['Sales Order Total']) ? '' : toNumber(row['Sales Order Total']),
+        'Total Supplier Cost': isBlank(row['Total Supplier Cost']) ? '' : toNumber(row['Total Supplier Cost']),
+        'SS Shipping Price': isBlank(row['SS Shipping Price']) ? '' : toNumber(row['SS Shipping Price']),
+        'Merchant / List Fee': isBlank(row['Merchant / List Fee']) ? '' : toNumber(row['Merchant / List Fee']),
+        'Total Cost': isBlank(row['Total Cost']) ? '' : toNumber(row['Total Cost']),
+        'Net profit': isBlank(row['Net profit']) ? '' : toNumber(row['Net profit']),
+        'NPM': isBlank(row['NPM']) ? '' : toNumber(row['NPM'])
+      }));
+      const ws = XLSX.utils.json_to_sheet(exportRows, { header: OUTPUT_HEADERS });
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'NPM');
+      XLSX.writeFile(wb, 'npm_calculator_output.xlsx');
+    });
+
+    resetBtn.addEventListener('click', () => {
+      state = { masterRows: [], detailRows: [], detailMapping: {}, filledCount: 0, unmatchedCount: 0, mergeCount: 0 };
+      masterFileInput.value = '';
+      detailFileInput.value = '';
+      thead.innerHTML = '';
+      tbody.innerHTML = '';
+      stats.innerHTML = '';
+      mergeBtn.disabled = true;
+      downloadBtn.disabled = true;
+      setStatus(masterStatus, 'info', 'No masterfile loaded yet.');
+      setStatus(mergeStatus, 'info', 'Load the masterfile first.');
+    });
+  </script>
+</body>
+</html>
